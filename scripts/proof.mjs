@@ -1,15 +1,23 @@
 // npm run proof: real keyless CoinMarketCap DEX calls for the demo tokens.
-// Writes the results into README.md between the PROOF markers. Plain Node ESM,
-// no dependencies, no TypeScript imports. Never throws, always exits 0, never
-// invents output: a failed call becomes one honest "Not run" line.
+// Writes the results into README.md and SUBMISSION.md between the PROOF markers.
+// Plain Node ESM, no dependencies. Never throws, always exits 0, never invents
+// output: a failed call becomes one honest "Not run" line.
 // It never reads or sends CMC_PRO_API_KEY: proof runs on the keyless host only.
+//
+// The brett-exit block runs the app's own model (exitQuote in lib/simulate.ts and
+// the pickers in lib/cmc-parse.ts) through a dynamic import. Both files only use
+// `import type`, so Node's type stripping can load them; on a Node that cannot,
+// the block says so instead of duplicating the model here.
 
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const readmePath = resolve(root, "README.md");
+const submissionPath = resolve(root, "SUBMISSION.md");
+const CHAIN_NAME = { base: "Base", bsc: "BNB Chain", solana: "Solana" };
+const HOLDING_USD = 5000;
 
 const KEYLESS_BASE = "https://pro-api.coinmarketcap.com/public-api";
 const TIMEOUT_MS = 10000;
@@ -161,13 +169,89 @@ function timingBlock(rows, at) {
   return lines.join("\n");
 }
 
-function replaceBlock(text, name, body) {
+/** The first `n` object records of a response, wherever the list sits. */
+function firstItems(json, n) {
+  if (!json || typeof json !== "object") return [];
+  const data = "data" in json ? json.data : json;
+  const pick = (arr) => arr.filter((x) => x && typeof x === "object").slice(0, n);
+  if (Array.isArray(data)) return pick(data);
+  if (data && typeof data === "object") {
+    for (const v of Object.values(data)) if (Array.isArray(v)) return pick(v);
+  }
+  return [];
+}
+
+const utc = (iso) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+const tokenName = (d, symbol) => `${symbol ?? `\`${d.address}\``} on ${CHAIN_NAME[d.platform] ?? d.platform}`;
+
+// holders-sample: the real holders POST for the first demo token (BRETT on Base by default).
+function holdersSampleBlock(r, d, symbol, at) {
+  if (!ok(r)) return failLine(r);
+  const records = firstItems(r.json, 2);
+  if (records.length === 0) return `Not run in this build: CoinMarketCap answered ${r.status} but the response held no holder records (POST /v1/dex/holders/list).`;
+  return [
+    `Fetched by \`npm run proof\` at ${utc(at)}: POST /public-api/v1/dex/holders/list for ${tokenName(d, symbol)}, keyless host, status ${r.status}, ${r.ms} ms, body \`${JSON.stringify(r.body)}\`. First ${records.length} holder records of the real response:`,
+    "",
+    "```json",
+    JSON.stringify(records, null, 2),
+    "```",
+  ].join("\n");
+}
+
+// brett-exit: what a $5,000 position pays at 0, 5 and 10 wallets ahead, computed by
+// exitQuote() over the live calls timeToken() just made. Sell tax on, LP drain off,
+// the same defaults /play opens with.
+async function brettExitBlock(t, at) {
+  if (!t) return "Not run in this build: no demo address is configured.";
+  const [tokenRes, poolsRes, holdersRes, securityRes, lcRes] = t.calls;
+  const failed = [tokenRes, poolsRes, holdersRes].find((c) => !ok(c));
+  if (failed) return failLine(failed);
+  let sim;
+  let parse;
+  try {
+    sim = await import(pathToFileURL(resolve(root, "lib/simulate.ts")).href);
+    parse = await import(pathToFileURL(resolve(root, "lib/cmc-parse.ts")).href);
+  } catch (err) {
+    return `Not run in this build: this Node version cannot load lib/simulate.ts without a build step (${err && err.code ? err.code : "import failed"}); Node 22.18 or newer strips the types.`;
+  }
+  const info = parse.parseTokenInfo(tokenRes.json);
+  const pools = parse.parsePools(poolsRes.json);
+  const holders = parse.parseHolders(holdersRes.json);
+  if (!(info.priceUsd > 0) || pools.length === 0) return "Not run in this build: the live response had no usable price or pools.";
+  const token = {
+    slug: `${t.d.platform}-${t.d.address.slice(0, 10).toLowerCase()}`,
+    symbol: info.symbol ?? "TOKEN",
+    name: info.name ?? info.symbol ?? "TOKEN",
+    platform: t.d.platform,
+    address: t.d.address,
+    priceUsd: info.priceUsd,
+    supply: info.supply ?? holders.reduce((s, h) => s + h.balance, 0),
+    sellTaxPct: ok(securityRes) ? parse.parseSellTaxPct(securityRes.json) : 0,
+    lpChange24hPct: ok(lcRes) ? parse.parseLpChangePct(lcRes.json) : 0,
+    pools,
+    holders,
+    snapshotAt: at,
+  };
+  const quote = (ahead) => sim.exitQuote({ token, holdingUsd: HOLDING_USD, walletsAhead: ahead, applyTax: true, applyDrain: false });
+  const q0 = quote(0);
+  const q5 = quote(5);
+  const q10 = quote(10);
+  if (q10.walletsAhead === 0) return "Not run in this build: the live holder list had no wallets that can sell, so the queue cannot be shown.";
+  const keep = Math.round((q0.receiveUsd / HOLDING_USD) * 100);
+  return [
+    `${tokenName(t.d, token.symbol)}, fetched ${utc(at)} by \`npm run proof\`: wallet shows ${sim.fmtUsd(HOLDING_USD)}, a sale pays ${sim.fmtUsd(q0.receiveUsd)} now, ${sim.fmtUsd(q5.receiveUsd)} if the top ${q5.walletsAhead} holders sell first, ${sim.fmtUsd(q10.receiveUsd)} if the top ${q10.walletsAhead} do. Selling now keeps ${keep}% of what your wallet shows.`,
+    "",
+    `Computed by \`exitQuote()\` in \`lib/simulate.ts\` with the sell tax on (${sim.fmtPctValue(token.sellTaxPct)}) and LP drain off, over ${pools.length} live pools and ${holders.length} live holders.`,
+  ].join("\n");
+}
+
+function replaceBlock(text, name, body, file = "README.md") {
   const begin = `<!-- PROOF:BEGIN ${name} -->`;
   const end = `<!-- PROOF:END ${name} -->`;
   const i = text.indexOf(begin);
   const j = text.indexOf(end);
   if (i < 0 || j < i) {
-    console.log(`proof: markers for ${name} not found in README.md, skipped`);
+    console.log(`proof: markers for ${name} not found in ${file}, skipped`);
     return text;
   }
   return text.slice(0, i + begin.length) + "\n" + body + "\n" + text.slice(j);
@@ -180,10 +264,12 @@ async function main() {
     const r = await call("GET", "/v1/dex/token/pools", { query: { platform: d.platform, address: d.address } });
     results.push({ r, d });
   }
+  let holders = null;
   if (DEMO[0]) {
     const d = DEMO[0];
     const r = await call("POST", "/v1/dex/holders/list", { body: { tokenAddress: d.address, platform: d.platform } });
     results.push({ r, d });
+    holders = { r, d };
   }
 
   for (const { r, d } of results) {
@@ -198,23 +284,36 @@ async function main() {
     console.log(`proof: demo-timing ${d.platform} total_ms=${t.totalMs} within_5s=${t.totalMs < DEMO_BUDGET_MS ? "yes" : "no"}`);
   }
 
+  const none = "Not run in this build: no demo address is configured.";
+  const holdersBody = holders ? holdersSampleBlock(holders.r, holders.d, timings[0]?.symbol ?? null, at) : none;
+  const exitBody = await brettExitBlock(timings[0], at);
+  console.log(`proof: brett-exit ${exitBody.startsWith("Not run") ? exitBody : "written"}`);
+
   let readme = await readFile(readmePath, "utf8");
   if (results.length === 0) {
-    readme = replaceBlock(readme, "cmc-call", "Not run in this build: no demo address is configured.");
-    readme = replaceBlock(readme, "cmc-fields", "Not run in this build: no demo address is configured.");
-    readme = replaceBlock(readme, "demo-timing", "Not run in this build: no demo address is configured.");
+    readme = replaceBlock(readme, "cmc-call", none);
+    readme = replaceBlock(readme, "cmc-fields", none);
+    readme = replaceBlock(readme, "demo-timing", none);
   } else {
     readme = replaceBlock(readme, "cmc-call", callBlock(results, at));
     readme = replaceBlock(readme, "cmc-fields", fieldsBlock(results));
     readme = replaceBlock(readme, "demo-timing", timingBlock(timings, at));
   }
+  readme = replaceBlock(readme, "holders-sample", holdersBody);
+  readme = replaceBlock(readme, "brett-exit", exitBody);
   await writeFile(readmePath, readme, "utf8");
   console.log("proof: README.md blocks updated");
+
+  let submission = await readFile(submissionPath, "utf8");
+  submission = replaceBlock(submission, "holders-sample", holdersBody, "SUBMISSION.md");
+  submission = replaceBlock(submission, "brett-exit", exitBody, "SUBMISSION.md");
+  await writeFile(submissionPath, submission, "utf8");
+  console.log("proof: SUBMISSION.md blocks updated");
 }
 
 try {
   await main();
 } catch (err) {
-  console.log(`proof: stopped early (${err && err.name ? err.name : "error"}); README.md left as it was`);
+  console.log(`proof: stopped early (${err && err.name ? err.name : "error"}); files not yet written were left as they were`);
 }
 process.exit(0);

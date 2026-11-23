@@ -2,7 +2,15 @@
 
 **Efflux shows what selling a small DEX token pays today, and what is left after the biggest wallets sell first.** A wallet shows price times balance; Efflux reads the real pools and holders from the CoinMarketCap DEX API so a holder knows how much of that number they can actually take out before pressing sell.
 
-Live demo: https://efflux-eight.vercel.app (start on `/` and drag "Wallets selling ahead of you" from 0 to the end; this is DEMO.md step 3).
+Live demo: https://efflux-eight.vercel.app (start on `/` and drag "Wallets selling ahead of you" from 0 to the end; this is DEMO.md step 4).
+
+Real call, written by `npm run proof` (`scripts/proof.mjs`), never by hand:
+
+<!-- PROOF:BEGIN holders-sample -->
+Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+<!-- PROOF:END holders-sample -->
+
+Which data the deployed page runs on is stated by the page itself: the note under the hero reads "Live from CoinMarketCap, BRETT on Base, fetched HH:MM UTC" in live mode, and names the seed or bundled snapshot otherwise.
 
 ## Try it in 60 seconds
 
@@ -17,7 +25,13 @@ Under the headline the source note says which data you are looking at, and on li
 
 People holding small tokens on Base, BNB Chain and Solana see a "value" in their wallet. That number is price times balance. It says nothing about how much money is actually sitting in the pools.
 
-Take a pool with $300,000 of liquidity. A $20,000 sale into it loses about 12% to price impact alone. Add a 5% sell tax and the liquidity that left in the last 24 hours, and the loss roughly doubles. The worst part is the order: if the top 10 wallets hold half the supply and they sell first, the pool the small holder sells into is close to empty.
+Here is a real token instead of a made-up pool. The figures below are computed by `exitQuote()` over live CoinMarketCap data each time `npm run proof` runs:
+
+<!-- PROOF:BEGIN brett-exit -->
+Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+<!-- PROOF:END brett-exit -->
+
+Read 0 as today and 10 as the worst case; the queue slider is a stress test, not a forecast.
 
 Swap interfaces quote one trade at one moment. None of the ones we tried shows the queue.
 
@@ -74,13 +88,13 @@ There are no sponsor bounties in this hackathon. The three rows are placements i
 
 | Bounty | Prize | Slots | Required tech | Code file | DEMO step |
 | --- | --- | --- | --- | --- | --- |
-| Top 3 | Full year of CMC API access: Professional, Growth, and Startup (Top 3) | 3 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
-| Top 10 | Exclusive CMC Plushie (Top 10) | 10 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
-| Top 30 | Exclusive CMC Keyboard (Top 30) | 30 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
+| Top 3 | Full year of CMC API access: Professional, Growth, and Startup (Top 3) | 3 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 4, 6 |
+| Top 10 | Exclusive CMC Plushie (Top 10) | 10 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 4, 6 |
+| Top 30 | Exclusive CMC Keyboard (Top 30) | 30 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 4, 6 |
 
 A single submission is placed once, and its rank decides which prize it gets.
 
-**How deep the integration goes.** `lib/adapter.ts` imports `loadExitBundle` from `lib/cmc.ts` and is the only data seam for every page and route. Delete `lib/cmc.ts` and, in real mode (`ADAPTER_MODE=real`), DEMO.md steps 2, 3 and 6 break: the pools behind "A sale pays you", the holder queue behind the slider and every entry in the proof drawer come from it. In fake mode the demo still runs on seed tokens, and step 6 labels its drawer entries as seed data rather than live calls.
+**How deep the integration goes.** `lib/adapter.ts` imports `loadExitBundle` from `lib/cmc.ts` and is the only data seam for every page and route. Delete `lib/cmc.ts` and, in real mode (`ADAPTER_MODE=real`), DEMO.md steps 2, 4 and 6 break: the pools behind "A sale pays you", the holder queue behind the slider and every entry in the proof drawer come from it. In fake mode the demo still runs on seed tokens, and step 6 labels its drawer entries as seed data rather than live calls.
 
 ## Addresses
 
@@ -124,18 +138,18 @@ Every request is recorded with method, URL, body, status, latency and the first 
 `scripts/proof.mjs` makes real keyless calls for the demo tokens and rewrites the two blocks below, plus the timing table under "Measured latency". When CoinMarketCap cannot be reached, it says so in one line instead of showing a response.
 
 <!-- PROOF:BEGIN cmc-call -->
-Captured by `npm run proof` at 2026-11-23T21:01:13.062Z, keyless host, no key header sent. First 600 characters of each response.
+Captured by `npm run proof` at 2026-11-23T21:11:36.770Z, keyless host, no key header sent. First 600 characters of each response.
 
-**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 575 ms
+**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 593 ms
 
 ```json
-{"data":[{"addr":"0xba3f945812a83471d709bce9c3ca699a19fb46f7","v24":"5173.659326491287299865","pubAt":"1709041137000","t0":{"addr":"0x4200000000000000000000000000000000000006","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png","n":"Wrapped Ether","sym":"WETH","liq":"300.609934755752015747","liqUsd":"517945.200087738262503166"},"t1":{"addr":"0x532f27101965dd16442e59d40670faf5ebb142e4","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/29743.png","n":"Brett","sym":"BRETT","liq":"87634123.89597285337132503","liqUsd":"272613.042744498950548916"},"bidx":1,"exid":7791,"exn":"
+{"data":[{"addr":"0xba3f945812a83471d709bce9c3ca699a19fb46f7","v24":"5175.725544113682515167","pubAt":"1709041137000","t0":{"addr":"0x4200000000000000000000000000000000000006","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png","n":"Wrapped Ether","sym":"WETH","liq":"300.610501125676480566","liqUsd":"518351.121750777108294494"},"t1":{"addr":"0x532f27101965dd16442e59d40670faf5ebb142e4","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/29743.png","n":"Brett","sym":"BRETT","liq":"87633821.046975984489091858","liqUsd":"272836.234742882295918435"},"bidx":1,"exid":7791,"exn":
 ```
 
-**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 453 ms
+**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 423 ms
 
 ```json
-{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"198812.426509581889768347","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"71383485422.0264","liqUsd":"155579.826372798266913449"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"829.888440901","liqUsd":"60420.897863299892431976"}
+{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"197206.163799122805776835","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"71456712540.03284","liqUsd":"155443.93052526365737485"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"827.705139551","liqUsd":"60254.835854773086849312"}
 ```
 
 - Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
@@ -168,12 +182,12 @@ Keys seen in the real responses, checked against the candidate keys in `lib/cmc-
 The demo has a 5 second rule per step. `npm run proof` times the five calls the app makes for each demo token and rewrites the table below. In the app itself, the sample list gives each demo token 4 seconds (`LIST_BUDGET_MS` in `lib/config.ts`); a token that misses it is served from its seed snapshot and named in the source note.
 
 <!-- PROOF:BEGIN demo-timing -->
-Measured by `npm run proof` at 2026-11-23T21:01:13.062Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
+Measured by `npm run proof` at 2026-11-23T21:11:36.770Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
 
 | Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |
 | --- | --- | --- | --- | --- |
-| BRETT | base | 834 | 200, 200, 400, 400, 200 | yes |
-| Bonk | solana | 595 | 200, 200, 400, 400, 200 | yes |
+| BRETT | base | 983 | 200, 200, 400, 400, 200 | yes |
+| Bonk | solana | 710 | 200, 200, 400, 400, 200 | yes |
 <!-- PROOF:END demo-timing -->
 
 ### What the API made possible and where it pushed back
