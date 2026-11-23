@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { hasBrandFile } from "@/lib/brand-files";
 import { cn } from "@/lib/utils";
 
@@ -14,11 +15,20 @@ interface SceneSlotProps {
  * One illustration slot. An uploaded public/brand/scene-{n}.png wins; otherwise the
  * hand-drawn SVG at public/illustrations/scene-{n}.svg renders. Call it with literal
  * values (n, alt, width, height): the image prompts are written from these tags.
+ * next/image serves .svg files unoptimized on its own (no dangerouslyAllowSVG), so
+ * no `unoptimized` flag is set here.
  */
 export function SceneSlot({ n, alt, width, height, className }: SceneSlotProps) {
   const src = hasBrandFile(`scene-${n}`) ? `/brand/scene-${n}.png` : `/illustrations/scene-${n}.svg`;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} width={width} height={height} loading={n === 1 ? "eager" : "lazy"} className={cn("h-auto w-full max-w-full", className)} />
+    <Image
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      priority={n === 1}
+      sizes="(min-width: 1024px) 896px, 100vw"
+      className={cn("h-auto w-full max-w-full", className)}
+    />
   );
 }

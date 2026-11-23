@@ -60,24 +60,16 @@ Every request is recorded with method, URL, body, status, latency and the first 
 
 #### Captured by `npm run proof`
 
-`scripts/proof.mjs` makes real keyless calls for the demo tokens and rewrites the two blocks below. When CoinMarketCap cannot be reached, it says so in one line instead of showing a response.
+`scripts/proof.mjs` makes real keyless calls for the demo tokens and rewrites the two blocks below, plus the timing table under "Measured latency". When CoinMarketCap cannot be reached, it says so in one line instead of showing a response.
 
 <!-- PROOF:BEGIN cmc-call -->
-Captured by `npm run proof` at 2026-11-23T20:11:26.705Z, keyless host, no key header sent. First 600 characters of each response.
+Captured by `npm run proof` at 2026-11-23T20:19:43.757Z, keyless host, no key header sent. First 600 characters of each response.
 
-**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 558 ms
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
 
-```json
-{"data":[{"addr":"0xba3f945812a83471d709bce9c3ca699a19fb46f7","v24":"5302.759432650673254781","pubAt":"1709041137000","t0":{"addr":"0x4200000000000000000000000000000000000006","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png","n":"Wrapped Ether","sym":"WETH","liq":"300.614478874713471174","liqUsd":"521037.725358045915538707"},"t1":{"addr":"0x532f27101965dd16442e59d40670faf5ebb142e4","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/29743.png","n":"Brett","sym":"BRETT","liq":"87631596.092317424700355678","liqUsd":"279876.27033868426492202"},"bidx":1,"exid":7791,"exn":"
-```
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
 
-**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 404 ms
-
-```json
-{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"239253.060132060062552223","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"71763008643.83857","liqUsd":"155962.609546829098753963"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"818.528011197","liqUsd":"59741.584477047090424291"
-```
-
-- Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+- Not run in this build: CoinMarketCap returned 429 (POST /v1/dex/holders/list).
 <!-- PROOF:END cmc-call -->
 
 Field names seen in those responses, checked against the parser candidates:
@@ -85,22 +77,23 @@ Field names seen in those responses, checked against the parser candidates:
 <!-- PROOF:BEGIN cmc-fields -->
 Keys seen in the real responses, checked against the candidate keys in `lib/cmc-parse.ts`.
 
-- GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`): top-level keys `data, status`; first item keys `addr, v24, pubAt, t0, t1, bidx, exid, exn, liqUsd, fa, top, mi`
-  - liquidity: found `liqUsd`
-  - address: found `addr`
-  - dex: found `exn`
-  - version: none of `v, version, poolType, type`
-  - fee: none of `feeRate, fee`
-  - sides: found `t0, t1`
-- GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`): top-level keys `data, status`; first item keys `addr, v24, pubAt, t0, t1, bidx, exid, exn, liqUsd, fa, top, mi`
-  - liquidity: found `liqUsd`
-  - address: found `addr`
-  - dex: found `exn`
-  - version: none of `v, version, poolType, type`
-  - fee: none of `feeRate, fee`
-  - sides: found `t0, t1`
-- Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
+- Not run in this build: CoinMarketCap returned 429 (POST /v1/dex/holders/list).
 <!-- PROOF:END cmc-fields -->
+
+### Measured latency
+
+The demo has a 5 second rule per step. `npm run proof` times the five calls the app makes for each demo token and rewrites the table below. In the app itself, the sample list gives each demo token 4 seconds (`LIST_BUDGET_MS` in `lib/config.ts`); a token that misses it is served from its seed snapshot and named in the source note.
+
+<!-- PROOF:BEGIN demo-timing -->
+Measured by `npm run proof` at 2026-11-23T20:19:43.757Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
+
+| Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |
+| --- | --- | --- | --- | --- |
+| 0x532f...42E4 | base | 198 | 429, 429, 429, 429, 429 | yes |
+| DezXAZ...B263 | solana | 397 | 429, 429, 429, 429, 429 | yes |
+<!-- PROOF:END demo-timing -->
 
 ### What the API made possible, and where it pushed back
 
@@ -133,6 +126,14 @@ No environment variables are required. `.env.example` lists every key; `lib/conf
 ### Data modes
 
 Pages and API routes read tokens through one adapter (`lib/adapter.ts`). With `ADAPTER_MODE=fake`, the default, they serve the seed tokens in `lib/data/seed.ts` and make no network calls. With `ADAPTER_MODE=real`, the demo tokens (BRETT on Base and BONK on Solana by default, overridable with `EFFLUX_DEMO_*_ADDRESS`) and every pasted address load live from the CoinMarketCap DEX API through `lib/cmc.ts`. A demo token that fails to load falls back to its seed token, and the page says "Bundled snapshot" instead of "Live from CoinMarketCap". `npm run seed` writes the seed tokens to `fixtures/seed.json`, and two runs give the same file.
+
+### Reset the demo
+
+```bash
+npm run demo:reset
+```
+
+It removes `.next/cache/fetch-cache` (the 60 s CoinMarketCap response cache) if it exists and regenerates `fixtures/seed.json` exactly as `npm run seed` does, then prints one line saying what it reset. Efflux stores nothing on the server: the share link carries every control in the URL, so there is no database and no migration to run. Restarting the server also clears the in-memory 60 s holders cache.
 
 API errors come back as `{ "error": "<code>", "hint": "<sentence>" }` with codes from `lib/errors.ts` (`invalid_input` 400, `not_found` 404, `parse_failure` 422, `upstream_error` 502, `upstream_timeout` 504).
 

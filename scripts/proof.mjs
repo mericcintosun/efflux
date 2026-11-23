@@ -122,6 +122,45 @@ function fieldsBlock(results) {
   return lines.join("\n");
 }
 
+// demo-timing: the same five calls lib/cmc.ts loadExitBundle makes, in parallel,
+// timed with performance.now(). Measured, never invented.
+const DEMO_BUDGET_MS = 5000;
+
+async function timeToken(d) {
+  const query = { platform: d.platform, address: d.address };
+  const started = performance.now();
+  const calls = await Promise.all([
+    call("GET", "/v1/dex/token", { query }),
+    call("GET", "/v1/dex/token/pools", { query }),
+    call("POST", "/v1/dex/holders/list", { body: { tokenAddress: d.address, platform: d.platform } }),
+    call("GET", "/v1/dex/security/detail", { query }),
+    call("GET", "/v1/dex/liquidity-change/list", { query }),
+  ]);
+  const totalMs = Math.round(performance.now() - started);
+  const info = calls[0].json && typeof calls[0].json === "object" ? calls[0].json.data : null;
+  const symbol = info && typeof info === "object" && !Array.isArray(info) ? info.symbol ?? info.sym ?? null : null;
+  return { d, calls, totalMs, symbol: typeof symbol === "string" ? symbol : null };
+}
+
+function timingBlock(rows, at) {
+  if (rows.every((r) => r.calls.every((c) => c.status === 0))) {
+    const c = rows[0].calls[0];
+    return `Not run in this build: ${c.error === "timeout" ? `every request timed out after ${TIMEOUT_MS} ms` : "no network to reach CoinMarketCap"}.`;
+  }
+  const lines = [
+    `Measured by \`npm run proof\` at ${at}, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with \`performance.now()\`.`,
+    "",
+    "| Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |",
+    "| --- | --- | --- | --- | --- |",
+  ];
+  for (const r of rows) {
+    const name = r.symbol ?? `${r.d.address.slice(0, 6)}...${r.d.address.slice(-4)}`;
+    const codes = r.calls.map((c) => (c.status === 0 ? (c.error === "timeout" ? "timeout" : "network") : String(c.status))).join(", ");
+    lines.push(`| ${name} | ${r.d.platform} | ${r.totalMs} | ${codes} | ${r.totalMs < DEMO_BUDGET_MS ? "yes" : "no"} |`);
+  }
+  return lines.join("\n");
+}
+
 function replaceBlock(text, name, body) {
   const begin = `<!-- PROOF:BEGIN ${name} -->`;
   const end = `<!-- PROOF:END ${name} -->`;
@@ -152,13 +191,22 @@ async function main() {
     console.log(`proof: ${r.method} ${r.path} ${d.platform} ${summary}`);
   }
 
+  const timings = [];
+  for (const d of DEMO) {
+    const t = await timeToken(d);
+    timings.push(t);
+    console.log(`proof: demo-timing ${d.platform} total_ms=${t.totalMs} within_5s=${t.totalMs < DEMO_BUDGET_MS ? "yes" : "no"}`);
+  }
+
   let readme = await readFile(readmePath, "utf8");
   if (results.length === 0) {
     readme = replaceBlock(readme, "cmc-call", "Not run in this build: no demo address is configured.");
     readme = replaceBlock(readme, "cmc-fields", "Not run in this build: no demo address is configured.");
+    readme = replaceBlock(readme, "demo-timing", "Not run in this build: no demo address is configured.");
   } else {
     readme = replaceBlock(readme, "cmc-call", callBlock(results, at));
     readme = replaceBlock(readme, "cmc-fields", fieldsBlock(results));
+    readme = replaceBlock(readme, "demo-timing", timingBlock(timings, at));
   }
   await writeFile(readmePath, readme, "utf8");
   console.log("proof: README.md blocks updated");
