@@ -41,20 +41,18 @@ function seedExcerpt(path: string, t: TokenSnapshot): unknown {
 }
 
 /**
- * Illustrative proof entries for a seed token: one per endpoint Efflux uses,
+ * Illustrative proof entries for a seed token: one per live endpoint (5),
  * marked keyless, stamped with the snapshot time and labelled as seed data so
  * the proof drawer never passes them off as a live call.
  */
 export function seedProof(t: TokenSnapshot): ApiProof[] {
-  return CMC_ENDPOINTS.map((e): ApiProof => {
+  // Only the 5 endpoints a token load calls; the search wrapper is not part of it.
+  return CMC_ENDPOINTS.filter((e) => e.live).map((e): ApiProof => {
     const isPost = e.method === "POST";
     const url = new URL(KEYLESS_BASE + e.path);
     if (!isPost) {
-      if (e.path === "/v1/dex/search") url.searchParams.set("keyword", t.symbol);
-      else {
-        url.searchParams.set("platform", t.platform);
-        url.searchParams.set("address", t.address);
-      }
+      url.searchParams.set("platform", t.platform);
+      url.searchParams.set("address", t.address);
     }
     const json = JSON.stringify(seedExcerpt(e.path, t), null, 2);
     return {

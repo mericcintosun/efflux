@@ -5,8 +5,9 @@
 //   shared IP-based rate limit. This is what the deployed demo uses.
 // - Optional: when CMC_PRO_API_KEY is set, the same paths go to the keyed host
 //   with the X-CMC_PRO_API_KEY header.
-// Every fetch has an 8 second timeout and at most one retry (429, network error
-// or timeout). Failures come back as typed ErrorCodes, never provider text.
+// Every call is aborted after 8 seconds, and a 429, a network error or a timeout
+// gets exactly one retry after 600 ms (a fixed wait, no backoff). Other HTTP errors
+// are not retried. Failures come back as typed ErrorCodes, never provider text.
 //
 // Every call is recorded as an ApiProof (method, URL, body, status, timing and the
 // first part of the raw response) so the UI can show a real request and its
@@ -46,14 +47,18 @@ import type { ApiEnvelope, ApiProof, Platform, TokenSnapshot } from "@/lib/types
 // Re-exported so existing imports from "@/lib/cmc" keep compiling.
 export type { ApiProof, ExitBundle } from "@/lib/types";
 
-/** The endpoints Efflux calls, listed for the README, /notes and the proof drawer. */
+/**
+ * The endpoints in lib/cmc.ts, listed for the README, /notes and the proof drawer.
+ * `live: true` marks the 5 that loadExitBundle calls for every token; the search
+ * wrapper is listed with `live: false` because the UI does not call it.
+ */
 export const CMC_ENDPOINTS = [
-  { method: "GET", path: "/v1/dex/token", use: "Price, symbol, name and supply of the token" },
-  { method: "GET", path: "/v1/dex/token/pools", use: "Every pool with liqUsd and both token sides, the input for virtual reserves" },
-  { method: "POST", path: "/v1/dex/holders/list", use: "Largest holders with balances and tags, the queue ahead of you" },
-  { method: "GET", path: "/v1/dex/security/detail", use: "Sell tax" },
-  { method: "GET", path: "/v1/dex/liquidity-change/list", use: "Liquidity added and removed, for the 24h LP drain" },
-  { method: "GET", path: "/v1/dex/search", use: "Token search by name or symbol (planned for the search box)" },
+  { method: "GET", path: "/v1/dex/token", live: true, use: "Price, symbol, name and supply of the token" },
+  { method: "GET", path: "/v1/dex/token/pools", live: true, use: "Every pool with liqUsd and both token sides, the input for virtual reserves" },
+  { method: "POST", path: "/v1/dex/holders/list", live: true, use: "Largest holders with balances and tags, the queue ahead of you" },
+  { method: "GET", path: "/v1/dex/security/detail", live: true, use: "Sell tax" },
+  { method: "GET", path: "/v1/dex/liquidity-change/list", live: true, use: "Liquidity added and removed, for the 24h LP drain" },
+  { method: "GET", path: "/v1/dex/search", live: false, use: "Token search by name or symbol: wrapper exists in lib/cmc.ts, not called by the live UI yet" },
 ] as const;
 
 type CallResult = { ok: true; json: unknown } | { ok: false; code: ErrorCode };
@@ -258,7 +263,10 @@ export async function loadExitBundle(platform: Platform, address: string): Promi
   };
 }
 
-/** Token search by name or symbol through /v1/dex/search. No UI uses it yet. */
+/**
+ * Token search by name or symbol through /v1/dex/search. A wrapper only: no
+ * page, route or component calls it, so the live UI makes 5 DEX calls per token.
+ */
 export async function searchTokens(keyword: string): Promise<ApiEnvelope<SearchHit[]>> {
   const proof: ApiProof[] = [];
   const res = await cmcCall("/v1/dex/search", { method: "GET", query: { keyword } }, proof);

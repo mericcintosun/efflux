@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/route-states";
 import { SceneSlot } from "@/components/scene-slot";
 import { CMC_ENDPOINTS, getAdapter } from "@/lib/adapter";
 import { DEFAULT_HOLDING_USD, type TokenSnapshot } from "@/lib/data";
-import { exitQuote, fmtUsd, totalLiquidityUsd, fmtCompactUsd } from "@/lib/simulate";
+import { exitQuote, fmtPctValue, fmtUsd, totalLiquidityUsd, fmtCompactUsd } from "@/lib/simulate";
 
 export const metadata: Metadata = {
   title: "Notes",
@@ -34,7 +34,7 @@ function WorkedExample({ t }: { t: TokenSnapshot }) {
     <p className="max-w-[65ch] text-lg">
       With the {t.symbol} snapshot ({t.pools.length} pools, {fmtCompactUsd(totalLiquidityUsd(t))} of liquidity), a{" "}
       {fmtUsd(DEFAULT_HOLDING_USD)} position pays {fmtUsd(plain.receiveUsd)} on price impact alone, {fmtUsd(cuts.receiveUsd)} with the{" "}
-      {t.sellTaxPct}% sell tax and a repeat of the {Math.abs(t.lpChange24hPct)}% LP drain, and {fmtUsd(queue.receiveUsd)} after the{" "}
+      {fmtPctValue(t.sellTaxPct)} sell tax and a repeat of the {fmtPctValue(Math.abs(t.lpChange24hPct))} LP drain, and {fmtUsd(queue.receiveUsd)} after the{" "}
       {queue.walletsAhead} largest wallets sell first.
     </p>
   );
@@ -46,7 +46,10 @@ function WorkedExample({ t }: { t: TokenSnapshot }) {
 export default async function NotesPage() {
   const { data } = await getAdapter().listTokens();
   const t = data?.[0];
-  const endpoints: ReadonlyArray<(typeof CMC_ENDPOINTS)[number]> = CMC_ENDPOINTS;
+  const all: ReadonlyArray<(typeof CMC_ENDPOINTS)[number]> = CMC_ENDPOINTS;
+  // The 5 calls every token load makes, and the search wrapper the UI does not call yet.
+  const endpoints = all.filter((e) => e.live);
+  const wrappers = all.filter((e) => !e.live);
 
   return (
     <>
@@ -86,7 +89,7 @@ export default async function NotesPage() {
       <section className="bg-background" aria-label="CoinMarketCap endpoints">
         <div className={BAND}>
           <h2 className="efflux-wipe-view max-w-[24ch] text-2xl leading-tight md:text-4xl">
-            Efflux calls {endpoints.length} CoinMarketCap DEX endpoints, all on the keyless public host.
+            {endpoints.length} DEX endpoints live: Efflux calls them for every token, all on the keyless public host.
           </h2>
           <div className="mt-8">
             {endpoints.length === 0 ? (
@@ -99,7 +102,7 @@ export default async function NotesPage() {
                 cta="Open the simulator"
               />
             ) : (
-              <Fold className="max-w-4xl" summary="The six endpoints and what Efflux takes from each">
+              <Fold className="max-w-4xl" summary={`The ${endpoints.length} live endpoints and what Efflux takes from each`}>
                 <ul className="divide-y divide-border">
                   {endpoints.map((e) => (
                     <li key={e.path} className="flex flex-col gap-1 py-3 md:flex-row md:gap-6">
@@ -110,6 +113,18 @@ export default async function NotesPage() {
                     </li>
                   ))}
                 </ul>
+                {wrappers.length > 0 ? (
+                  <ul className="mt-6 space-y-2 text-sm">
+                    {wrappers.map((e) => (
+                      <li key={e.path} className="flex flex-col gap-1 md:flex-row md:gap-6">
+                        <span className="break-all font-semibold md:min-w-[19rem] md:break-normal">
+                          {e.method} /public-api{e.path}
+                        </span>
+                        <span className="text-muted-foreground">Not live: wrapper exists in lib/cmc.ts, not called by the live UI yet.</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </Fold>
             )}
           </div>
@@ -142,8 +157,9 @@ export default async function NotesPage() {
                 <p>
                   Pushback: pools expose liqUsd but no reserve field, so reserves are virtual: half of liqUsd per side. The holders
                   percent field does not say whether it is a fraction or a percent, so Efflux computes share of supply itself. The
-                  keyless tier shares one rate limit per IP, so the server caches responses for 60 seconds, gives every call 8 seconds,
-                  and retries once on HTTP 429 or a timeout.
+                  keyless tier shares one rate limit per IP, so the server caches responses for 60 seconds. Every call is aborted
+                  after 8 seconds, and a 429, a network error or a timeout gets exactly one retry after 600 ms. If the retry fails
+                  too, a sample token falls back to its bundled snapshot and a pasted address shows an error with a retry button.
                 </p>
               </div>
             </div>
