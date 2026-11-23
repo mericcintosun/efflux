@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "seed": "node --experimental-strip-types scripts/seed.mjs"
+    "seed": "node --experimental-strip-types scripts/seed.mjs",
+    "test": "vitest run",
+    "proof": "node scripts/proof.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.2",
@@ -19,7 +21,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwind-merge": "^3.0.1",
-    "three": "^0.187.0"
+    "three": "^0.187.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
@@ -28,6 +31,7 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.187.0",
     "tailwindcss": "^4.1.11",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
