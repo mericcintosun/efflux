@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExitStage, type ExitControls } from "@/components/exit-stage";
+import { PoolSceneFrame } from "@/components/pool-scene-frame";
+import type { PoolView } from "@/components/pool-scene";
 import { EmptyState } from "@/components/route-states";
 import { DEFAULT_HOLDING_USD, SOURCE_LABEL } from "@/lib/data";
 import type { DataSource, TokenSnapshot } from "@/lib/types";
@@ -50,17 +52,22 @@ const CHAPTERS: Chapter[] = [
 ];
 
 /**
- * Story-scroll (structure S6): one sticky live ExitStage, four chapter bands
- * scrolling under it. The active chapter sets the stage state from the first
- * token the page received through the adapter.
+ * Story-scroll (structure S6), the first band of the home route. One live
+ * component (the 3D pool plus the ExitStage panel) stays on screen while four
+ * chapters scroll beside it (lg) or under it (phones). The chapter state lives
+ * here and feeds both halves of the live component, so the pool follows the
+ * panel's slider and switches (signature 2) and the camera follows the chapter
+ * (signature 3). `intro` is the server-rendered hero copy.
  */
-export function StoryScroll({ tokens, source = "fake" }: { tokens: TokenSnapshot[]; source?: DataSource }) {
+export function StoryScroll({ tokens, source = "fake", intro }: { tokens: TokenSnapshot[]; source?: DataSource; intro: ReactNode }) {
   const token = tokens[0];
   if (!token) {
     return (
       <section aria-label="The story of one exit" className="bg-background">
-        <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
+        <div className="mx-auto max-w-6xl px-5 py-20 md:px-8 md:py-28">
+          {intro}
           <EmptyState
+            className="mt-12"
             title="No sample token is loaded, so the story has nothing to sell yet."
             body="Open the simulator and paste any Base, BNB Chain or Solana token address instead."
             href="/play"
@@ -70,14 +77,17 @@ export function StoryScroll({ tokens, source = "fake" }: { tokens: TokenSnapshot
       </section>
     );
   }
-  return <StoryChapters token={token} source={source} />;
+  return <StoryChapters token={token} source={source} intro={intro} />;
 }
 
-function StoryChapters({ token, source }: { token: TokenSnapshot; source: DataSource }) {
+function StoryChapters({ token, source, intro }: { token: TokenSnapshot; source: DataSource; intro: ReactNode }) {
   const sellers = useMemo(() => exitQuote({ token, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: false, applyDrain: false }).sellers.length, [token]);
   const [active, setActive] = useState(0);
+  // The one state object behind the live component: ExitStage and the pool both read and write it.
   const [controls, setControls] = useState<ExitControls>(() => CHAPTERS[0].preset!(sellers));
   const bandRefs = useRef<(HTMLElement | null)[]>([]);
+  const update = (next: Partial<ExitControls>) => setControls((c) => ({ ...c, ...next }));
+  const view: PoolView = CHAPTERS[active].id === "queue" ? "side" : "front";
 
   // Lines are computed from each chapter's own preset, so the copy always matches the math.
   const lines = useMemo(
@@ -115,70 +125,72 @@ function StoryChapters({ token, source }: { token: TokenSnapshot; source: DataSo
   };
 
   return (
-    <section aria-label="The story of one exit">
-      <div className="sticky top-16 z-30 border-b border-border bg-background">
-        <div className="mx-auto max-w-6xl px-5 pb-5 pt-3 md:px-8">
-          <nav aria-label="Chapters" className="mb-4">
-            <ol className="flex flex-wrap gap-1">
-              {CHAPTERS.map((c, i) => (
-                <li key={c.id}>
-                  <a
-                    href={`#chapter-${c.id}`}
-                    aria-current={i === active ? "step" : undefined}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      jump(i);
-                    }}
-                    className={cn(
-                      "inline-flex min-h-11 items-center rounded-xs px-3 text-xs font-bold uppercase tracking-[0.14em] transition-colors md:min-h-9",
-                      i === active ? "bg-foreground text-background" : "bg-surface text-foreground hover:bg-deep"
-                    )}
-                  >
-                    {c.label}
-                  </a>
-                </li>
-              ))}
-            </ol>
-            <div className="mt-2 h-1 w-full bg-deep" aria-hidden="true">
-              <div className="h-full bg-primary transition-[width] duration-500" style={{ width: `${((active + 1) / CHAPTERS.length) * 100}%` }} />
-            </div>
-          </nav>
-          <p className="mb-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <Badge variant={source === "live" ? "ok" : "secondary"}>{SOURCE_LABEL[source]}</Badge>
-            <span>
-              {token.symbol}, {token.pools.length} pools, {token.holders.length} holders.
-            </span>
-          </p>
-          <ExitStage
-            compact
-            token={token}
-            holdingUsd={DEFAULT_HOLDING_USD}
-            {...controls}
-            onChange={(next) => setControls((c) => ({ ...c, ...next }))}
-          />
-        </div>
-      </div>
+    <section aria-label="The story of one exit" className="bg-background">
+      <div className="mx-auto max-w-6xl px-5 pt-14 md:px-8 md:pt-20">{intro}</div>
 
-      {CHAPTERS.map((c, i) => (
-        <section
-          key={c.id}
-          id={`chapter-${c.id}`}
-          data-index={i}
-          ref={(el) => {
-            bandRefs.current[i] = el;
-          }}
-          className={cn("min-h-[85vh] scroll-mt-16", i % 2 === 0 ? "bg-background" : "bg-surface")}
-        >
-          <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
-            <h2 className="max-w-[24ch] text-2xl leading-tight md:text-4xl">{lines[i]}</h2>
-            {c.preset === null ? (
-              <Button asChild size="lg" className="mt-10 min-h-11">
-                <Link href={`/play?token=${token.slug}`}>Simulate your own exit</Link>
-              </Button>
-            ) : null}
+      <div className="mx-auto max-w-6xl px-5 pb-20 pt-10 md:px-8 md:pb-28 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12 lg:pt-14">
+        {/* The live component. On phones both wrappers are display: contents, so the pool sits in the flow and the
+            panel sticks under the header for the whole story; at lg the pair is one sticky right column. */}
+        <div className="contents lg:col-start-2 lg:row-start-1 lg:block">
+          <div className="contents lg:sticky lg:top-20 lg:block lg:max-h-[calc(100svh-6rem)] lg:overflow-y-auto">
+            <PoolSceneFrame token={token} controls={controls} onChange={update} view={view} />
+
+            <div className="sticky top-16 z-30 -mx-5 mt-8 max-h-[55svh] overflow-y-auto bg-surface px-5 py-3 md:-mx-8 md:px-8 lg:static lg:mx-0 lg:mt-6 lg:max-h-none lg:overflow-visible lg:p-6">
+              <nav aria-label="Chapters" className="mb-3">
+                <ol className="flex gap-1 overflow-x-auto">
+                  {CHAPTERS.map((c, i) => (
+                    <li key={c.id} className="shrink-0">
+                      <a
+                        href={`#chapter-${c.id}`}
+                        aria-current={i === active ? "step" : undefined}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          jump(i);
+                        }}
+                        className={cn(
+                          "inline-flex min-h-11 items-center whitespace-nowrap rounded-xs px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground",
+                          i === active ? "bg-primary text-primary-foreground" : "bg-background text-foreground hover:bg-deep"
+                        )}
+                      >
+                        {c.label}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+              <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <Badge variant={source === "live" ? "ok" : "secondary"}>{SOURCE_LABEL[source]}</Badge>
+                <span className="hidden sm:inline">
+                  {token.symbol}, {token.pools.length} pools, {token.holders.length} holders.
+                </span>
+              </p>
+              <ExitStage compact token={token} holdingUsd={DEFAULT_HOLDING_USD} {...controls} onChange={update} />
+            </div>
           </div>
-        </section>
-      ))}
+        </div>
+
+        <ol className="lg:col-start-1 lg:row-start-1">
+          {CHAPTERS.map((c, i) => (
+            <li
+              key={c.id}
+              id={`chapter-${c.id}`}
+              data-index={i}
+              ref={(el) => {
+                bandRefs.current[i] = el;
+              }}
+              className="flex min-h-[70svh] flex-col justify-center py-10 lg:min-h-[80svh]"
+            >
+              <p className="text-sm font-semibold text-muted-foreground">{c.label}</p>
+              <h2 className="mt-3 max-w-[22ch] text-2xl leading-tight md:text-3xl lg:text-4xl">{lines[i]}</h2>
+              {c.preset === null ? (
+                <Button asChild variant="link" className="mt-8 min-h-11 text-base">
+                  <Link href={`/play?token=${token.slug}`}>Simulate your own exit with these controls</Link>
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </div>
     </section>
   );
 }
