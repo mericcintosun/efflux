@@ -1,34 +1,73 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { seed } from "@/lib/data";
+import Link from "next/link";
+import { PoolSceneFrame } from "@/components/pool-scene-frame";
+import { SceneSlot } from "@/components/scene-slot";
+import { StoryScroll } from "@/components/story-scroll";
+import { tokens } from "@/lib/data";
 
-// TEMPLATE: this page must be rewritten with the idea's real copy at scaffold
-// time: hero with the product one-liner and ONE primary CTA, 2-3 product
-// sections, footer. Use the shadcn primitives in components/ui; never bare
-// unstyled HTML controls. No template copy may survive.
+// Home route: L5 bands. Full-width bands alternate ground and surface, each one
+// sentence plus one artifact; the "Your turn" chapter inside StoryScroll is the
+// CTA band. No columns inside a band, no cards inside a band.
 export default function Home() {
+  const story = tokens[0];
+
   return (
-    <div className="space-y-16 py-10">
-      <section className="mx-auto max-w-2xl space-y-6 text-center">
-        <Badge variant="outline">TEMPLATE</Badge>
-        <h1 className="text-4xl font-bold tracking-tight">Template</h1>
-        <p className="text-lg text-muted-foreground">
-          Warm-start scaffold. If you can read this in a shipped product, the scaffold step failed.
-        </p>
-        <Button size="lg">Primary CTA</Button>
+    <>
+      <section className="bg-background">
+        <div className="mx-auto max-w-6xl px-5 pb-16 pt-14 md:px-8 md:pb-24 md:pt-20">
+          <div className="efflux-wipe-group">
+            <h1 className="efflux-wipe max-w-[16ch] text-4xl leading-[1.02] sm:text-6xl lg:text-7xl">
+              Your wallet says $5,000. The pool decides what you get.
+            </h1>
+            <p className="efflux-wipe mt-6 max-w-[62ch] text-lg">
+              Efflux reads a token&apos;s real pools and biggest holders from the CoinMarketCap DEX API, then works out what a sale pays
+              today, and what is left if the whales get out first.
+            </p>
+          </div>
+          <div className="mt-12">
+            <PoolSceneFrame token={story} />
+          </div>
+        </div>
       </section>
-      <section className="grid gap-4 sm:grid-cols-2">
-        {seed.map((s) => (
-          <Card key={s.id}>
-            <CardHeader>
-              <CardTitle>{s.name}</CardTitle>
-              <CardDescription>Replace with a real feature card.</CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">Seed-driven content.</CardContent>
-          </Card>
-        ))}
+
+      <section className="bg-surface">
+        <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <h2 className="efflux-wipe-view max-w-[26ch] text-2xl leading-tight md:text-4xl">
+            Market value assumes the pool can pay it; in a pool holding $300,000, a $20,000 sale already loses about 12% before
+            any tax.
+          </h2>
+          <div className="mt-12 max-w-4xl">
+            <SceneSlot
+              n={2}
+              alt="Three liquidity pools of different heights drained to low levels, with a line of large holder blocks standing ahead of one small magenta block"
+              width={960}
+              height={640}
+            />
+          </div>
+        </div>
       </section>
-    </div>
+
+      <StoryScroll token={story} />
+
+      <section className="bg-background">
+        <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <h2 className="efflux-wipe-view max-w-[26ch] text-2xl leading-tight md:text-4xl">
+            Every number above comes from five CoinMarketCap DEX endpoints, called without an API key.
+          </h2>
+          <div className="mt-12 max-w-4xl">
+            <SceneSlot
+              n={3}
+              alt="A descending staircase of flat bars, from a tall ink bar for the wallet value down to a short magenta bar for the cash that arrives"
+              width={960}
+              height={640}
+            />
+          </div>
+          <p className="mt-8 text-base">
+            <Link href="/notes" className="font-semibold underline decoration-primary decoration-2 underline-offset-4 hover:decoration-foreground">
+              Read the method, the endpoint list and a real request with its response
+            </Link>
+          </p>
+        </div>
+      </section>
+    </>
   );
 }
