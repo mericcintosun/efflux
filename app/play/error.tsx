@@ -13,7 +13,7 @@ export default function PlayError({ reset }: { error: Error & { digest?: string 
         body="CoinMarketCap or our server did not answer in time. Try again; the sample tokens come back from the bundled snapshot if the live call still fails."
         onRetry={reset}
       >
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" className="min-h-11">
           <Link href="/play">Start the simulator fresh</Link>
         </Button>
       </ErrorState>

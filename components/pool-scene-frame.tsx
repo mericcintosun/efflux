@@ -103,12 +103,12 @@ export function PoolSceneFrame({ token }: { token: TokenSnapshot }) {
             </>
           )}
         </p>
-        <div className="flex shrink-0 gap-2">
-          <Button variant="outline" onClick={pour} disabled={max === 0}>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button variant="outline" className="min-h-11" onClick={pour} disabled={max === 0}>
             {sold >= max ? "Refill the pool" : "Let the next wallet sell"}
           </Button>
           {sold > 0 && sold < max ? (
-            <Button variant="ghost" onClick={() => setSold(0)}>
+            <Button variant="ghost" className="min-h-11" onClick={() => setSold(0)}>
               Reset
             </Button>
           ) : null}

@@ -130,7 +130,7 @@ function StoryChapters({ token, source }: { token: TokenSnapshot; source: DataSo
                       jump(i);
                     }}
                     className={cn(
-                      "inline-block rounded-xs px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] transition-colors",
+                      "inline-flex min-h-11 items-center rounded-xs px-3 text-xs font-bold uppercase tracking-[0.14em] transition-colors md:min-h-9",
                       i === active ? "bg-foreground text-background" : "bg-surface text-foreground hover:bg-deep"
                     )}
                   >
@@ -172,7 +172,7 @@ function StoryChapters({ token, source }: { token: TokenSnapshot; source: DataSo
           <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
             <h2 className="max-w-[24ch] text-2xl leading-tight md:text-4xl">{lines[i]}</h2>
             {c.preset === null ? (
-              <Button asChild size="lg" className="mt-10">
+              <Button asChild size="lg" className="mt-10 min-h-11">
                 <Link href={`/play?token=${token.slug}`}>Simulate your own exit</Link>
               </Button>
             ) : null}

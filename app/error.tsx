@@ -14,7 +14,7 @@ export default function Error({ reset }: { error: Error & { digest?: string }; r
           body="Try again, or go back to the story and start from the top."
           onRetry={reset}
         >
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="min-h-11">
             <Link href="/">Back to the story</Link>
           </Button>
         </ErrorState>
