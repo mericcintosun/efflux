@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { PlayDesk, type PlayInitial } from "@/components/play-desk";
-import { getAdapter } from "@/lib/adapter";
-import { DEFAULT_HOLDING_USD, type Platform } from "@/lib/data";
+import { getAdapter, lookupWithinBudget } from "@/lib/adapter";
+import { DEFAULT_HOLDING_USD, type ApiEnvelope, type TokenSnapshot } from "@/lib/data";
+import { playQuerySchema } from "@/lib/schemas";
 
 export const metadata: Metadata = {
   title: "Simulator",
@@ -14,27 +15,39 @@ function one(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function clampNumber(v: string | undefined, fallback: number, min: number, max: number): number {
-  const n = Number(v);
-  return Number.isFinite(n) && v !== undefined && v !== "" ? Math.min(max, Math.max(min, n)) : fallback;
-}
-
 // The free-form tool without the narrative. Every control is mirrored in the
 // URL by "Copy a link to this result", so a shared link reopens the same exit.
+// This page reads searchParams, so it stays dynamic and relies on the 60 s
+// fetch cache in lib/cmc.ts. A shared link with platform and address resolves
+// here on the server (initialLookup), never through a client effect.
 export default async function PlayPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const { data, source, proof } = await getAdapter().listTokens();
-  const samples = data ?? [];
-  const wanted = (one(sp.token) ?? "").toLowerCase();
-  const platform = one(sp.platform);
-  const initial: PlayInitial = {
-    slug: samples.find((t) => t.slug === wanted)?.slug ?? samples[0]?.slug ?? "",
-    holdingUsd: clampNumber(one(sp.usd), DEFAULT_HOLDING_USD, 1, 10_000_000),
-    ahead: clampNumber(one(sp.ahead), 0, 0, 10),
-    applyTax: one(sp.tax) !== "0",
-    applyDrain: one(sp.drain) === "1",
-    platform: platform === "base" || platform === "bsc" || platform === "solana" ? (platform as Platform) : undefined,
+  const parsed = playQuerySchema.safeParse({
+    token: one(sp.token),
+    usd: one(sp.usd),
+    ahead: one(sp.ahead),
+    tax: one(sp.tax),
+    drain: one(sp.drain),
+    platform: one(sp.platform),
     address: one(sp.address),
+  });
+  const q = parsed.success
+    ? parsed.data
+    : { token: undefined, usd: DEFAULT_HOLDING_USD, ahead: 0, tax: true, drain: false, platform: undefined, address: undefined, lookup: undefined };
+
+  const [list, initialLookup] = await Promise.all([
+    getAdapter().listTokens(),
+    q.lookup ? lookupWithinBudget(q.lookup.platform, q.lookup.address) : Promise.resolve<ApiEnvelope<TokenSnapshot> | undefined>(undefined),
+  ]);
+  const samples = list.data ?? [];
+  const initial: PlayInitial = {
+    slug: samples.find((t) => t.slug === q.token)?.slug ?? samples[0]?.slug ?? "",
+    holdingUsd: q.usd,
+    ahead: q.ahead,
+    applyTax: q.tax,
+    applyDrain: q.drain,
+    platform: q.platform,
+    address: q.address,
   };
 
   return (
@@ -45,7 +58,7 @@ export default async function PlayPage({ searchParams }: { searchParams: SearchP
         then sells yours, and tells you what arrives.
       </p>
       <div className="mt-12">
-        <PlayDesk initial={initial} samples={samples} samplesSource={source} samplesProof={proof} />
+        <PlayDesk initial={initial} samples={samples} samplesSource={list.source} samplesProof={list.proof} initialLookup={initialLookup} />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { EmptyState, ErrorState } from "@/components/route-states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,83 +56,139 @@ function errorMessage(code: ErrorCode, platform: Platform, samplesSource: DataSo
   }
 }
 
+/** Source line for a token that came from an address lookup. UTC, so server and browser render the same text. */
+function lookupSource(envelope: ApiEnvelope<TokenSnapshot>, data: TokenSnapshot): SourceState {
+  return {
+    kind: envelope.source,
+    note:
+      envelope.source === "live"
+        ? `Read at ${new Date(data.snapshotAt).toLocaleTimeString("en-US", { timeZone: "UTC" })} UTC`
+        : envelope.message,
+    sample: false,
+  };
+}
+
 export function PlayDesk({
   initial,
   samples,
   samplesSource,
   samplesProof = [],
+  initialLookup,
 }: {
   initial: PlayInitial;
   samples: TokenSnapshot[];
   samplesSource: DataSource;
   /** The requests behind the sample list (seed entries in fake mode, real calls in real mode). */
   samplesProof?: ApiProof[];
+  /** A shared link with platform and address, already resolved on the server by app/play/page.tsx. */
+  initialLookup?: ApiEnvelope<TokenSnapshot>;
 }) {
   const holdingId = useId();
+  const addressRef = useRef<HTMLInputElement>(null);
   const proofFor = useCallback(
     (t: TokenSnapshot | null) => (t ? samplesProof.filter((p) => p.url.includes(t.address) || p.body?.tokenAddress === t.address) : []),
     [samplesProof]
   );
-  const [token, setToken] = useState<TokenSnapshot | null>(() => samples.find((t) => t.slug === initial.slug) ?? samples[0] ?? null);
-  const [source, setSource] = useState<SourceState>(() => sampleSource(samplesSource));
+
+  // Starting state. A resolved shared link wins; a failed one keeps the sample
+  // token on screen and opens in the error state with its retry button.
+  const startLookup = initialLookup?.data ?? null;
+  const startToken = startLookup ?? samples.find((t) => t.slug === initial.slug) ?? samples[0] ?? null;
+  const [token, setToken] = useState<TokenSnapshot | null>(startToken);
+  const [source, setSource] = useState<SourceState>(() =>
+    initialLookup && startLookup ? lookupSource(initialLookup, startLookup) : sampleSource(samplesSource)
+  );
   const [holdingUsd, setHoldingUsd] = useState(initial.holdingUsd);
   const [controls, setControls] = useState<ExitControls>({ ahead: initial.ahead, applyTax: initial.applyTax, applyDrain: initial.applyDrain });
   const [excluded, setExcluded] = useState<string[]>([]);
   const [platform, setPlatform] = useState<Platform>(initial.platform ?? "base");
   const [address, setAddress] = useState(initial.address ?? "");
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [lookedUp, setLookedUp] = useState(false);
-  const [proof, setProof] = useState<ApiProof[]>(() => proofFor(token));
+  const [status, setStatus] = useState<Status>(() =>
+    initialLookup && !startLookup
+      ? { kind: "error", message: errorMessage(initialLookup.error?.error ?? "not_found", initial.platform ?? "base", samplesSource) }
+      : { kind: "idle" }
+  );
+  const [lookedUp, setLookedUp] = useState(Boolean(initialLookup));
+  const [proof, setProof] = useState<ApiProof[]>(() => (initialLookup && startLookup ? initialLookup.proof : proofFor(startToken)));
+  // True when the newest lookup failed: the drawer keeps the earlier proof and says so.
+  const [lookupFailed, setLookupFailed] = useState(Boolean(initialLookup && !startLookup));
   const [proofOpen, setProofOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Double-submit guard: every lookup gets an id and an AbortController. A new
+  // lookup aborts the one in flight, and a response whose id is stale is ignored.
+  const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const lastLookupRef = useRef<{ platform: Platform; address: string } | null>(
+    initial.platform && initial.address ? { platform: initial.platform, address: initial.address } : null
+  );
 
   const isLive = source.kind === "live";
   const fromLookup = !source.sample;
 
   const loadLive = useCallback(
     async (p: Platform, a: string) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const id = ++requestIdRef.current;
+      lastLookupRef.current = { platform: p, address: a };
       setStatus({ kind: "loading" });
       setLookedUp(true);
+      const fail = (message: string) => {
+        // Keep the previous proof entries; the drawer notes that this lookup failed.
+        setLookupFailed(true);
+        setStatus({ kind: "error", message });
+      };
       try {
-        const res = await fetch(`/api/exit?platform=${p}&address=${encodeURIComponent(a.trim())}`);
+        const res = await fetch(`/api/exit?platform=${p}&address=${encodeURIComponent(a.trim())}`, { signal: controller.signal });
         const body = (await res.json()) as unknown;
+        if (id !== requestIdRef.current) return;
         if (isErrorBody(body)) {
-          setProof([]);
-          setStatus({ kind: "error", message: errorMessage(body.error, p, samplesSource) });
+          fail(errorMessage(body.error, p, samplesSource));
           return;
         }
         const envelope = body as ApiEnvelope<TokenSnapshot>;
-        setProof(envelope.proof ?? []);
         if (!envelope.data) {
-          setStatus({ kind: "error", message: errorMessage("not_found", p, samplesSource) });
+          fail(errorMessage("not_found", p, samplesSource));
           return;
         }
         const data = envelope.data;
+        setProof(envelope.proof ?? []);
+        setLookupFailed(false);
         setToken(data);
         setExcluded([]);
-        setSource({
-          kind: envelope.source,
-          note: envelope.source === "live" ? `Read at ${new Date(data.snapshotAt).toLocaleTimeString("en-US")}` : envelope.message,
-          sample: false,
-        });
+        setSource(lookupSource(envelope, data));
         setStatus({ kind: "idle" });
       } catch {
-        setStatus({ kind: "error", message: "The request did not reach our server. Check your connection and try again." });
+        if (id !== requestIdRef.current || controller.signal.aborted) return;
+        fail("The request did not reach our server. Check your connection and try again.");
       }
     },
     [samplesSource]
   );
 
-  // A shared link with platform + address loads the token on arrival.
-  useEffect(() => {
-    if (initial.platform && initial.address) void loadLive(initial.platform, initial.address);
-  }, [initial.platform, initial.address, loadLive]);
+  // Cancel a lookup still in flight when the desk unmounts. No fetch here.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const retryLookup = () => {
+    const last = lastLookupRef.current;
+    if (last) void loadLive(last.platform, last.address);
+    else if (address.trim()) void loadLive(platform, address);
+    else addressRef.current?.focus();
+  };
+
+  const focusAddress = () => addressRef.current?.focus();
 
   const sellers = useMemo(() => (token ? eligibleSellers(token, excluded) : []), [token, excluded]);
   const ahead = Math.min(controls.ahead, sellers.length);
   const liquidity = token ? totalLiquidityUsd(token) : 0;
 
   const pickSample = (t: TokenSnapshot) => {
+    // A sample pick wins over a lookup still in flight.
+    abortRef.current?.abort();
+    requestIdRef.current++;
+    setLookupFailed(false);
     setToken(t);
     setExcluded([]);
     setSource(sampleSource(samplesSource));
@@ -183,7 +240,14 @@ export function PlayDesk({
               ))}
             </div>
           ) : (
-            <p className="bg-background px-4 py-3 text-sm">No sample tokens are available right now. Paste an address below.</p>
+            // EmptyState: no samples came back; the action moves focus to the address field.
+            <EmptyState
+              className="bg-background"
+              title="No sample tokens right now"
+              body="Neither CoinMarketCap nor the bundled snapshot returned a sample. Paste a contract address below instead."
+              cta="Paste an address"
+              onAction={focusAddress}
+            />
           )}
           <form
             className="space-y-3"
@@ -201,21 +265,22 @@ export function PlayDesk({
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
+                ref={addressRef}
                 aria-label="Token contract address"
                 placeholder={platform === "solana" ? "Mint address" : "0x contract address"}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 spellCheck={false}
               />
-              <Button type="submit" disabled={status.kind === "loading" || !address.trim()}>
+              {/* Submit guard: bound to the request status, not a timer. */}
+              <Button type="submit" disabled={status.kind === "loading" || !address.trim()} aria-busy={status.kind === "loading"}>
                 {status.kind === "loading" ? "Reading CoinMarketCap..." : "Read from CoinMarketCap"}
               </Button>
             </div>
           </form>
           {status.kind === "error" ? (
-            <p role="alert" className="border-l-4 border-bad bg-background px-4 py-3 text-sm">
-              {status.message}
-            </p>
+            // ErrorState: the lookup failed; "Try again" reruns loadLive with the same chain and address.
+            <ErrorState className="bg-background" title="That lookup did not work" body={status.message} onRetry={retryLookup} />
           ) : !lookedUp ? (
             <p className="border-l-4 border-line bg-background px-4 py-3 text-sm">
               No address looked up yet. Paste a contract address on {PLATFORM_LABEL[platform]} to see its pools, holders and the CoinMarketCap
@@ -278,12 +343,16 @@ export function PlayDesk({
               {proofOpen ? "Hide the CoinMarketCap calls" : "Show the CoinMarketCap calls"}
             </Button>
           </div>
-          {proofOpen ? <ProofDrawer proof={proof} source={source.kind} /> : null}
+          {proofOpen ? <ProofDrawer proof={proof} source={source.kind} lastFailed={lookupFailed} /> : null}
         </section>
       ) : (
-        <section aria-label="Exit result" className="bg-surface px-6 py-10">
-          <h2 className="text-2xl md:text-3xl">Nothing to simulate yet</h2>
-          <p className="mt-3 max-w-[60ch] text-sm">Paste a token address above and Efflux works out what a sale of it pays.</p>
+        <section aria-label="Exit result">
+          <EmptyState
+            title="Nothing to simulate yet"
+            body="Paste a token address above and Efflux works out what a sale of it pays."
+            cta="Paste an address"
+            onAction={focusAddress}
+          />
         </section>
       )}
 
@@ -345,12 +414,20 @@ export function PlayDesk({
   );
 }
 
-function ProofDrawer({ proof, source }: { proof: ApiProof[]; source: DataSource }) {
+function ProofDrawer({ proof, source, lastFailed }: { proof: ApiProof[]; source: DataSource; lastFailed: boolean }) {
+  const failedNote = lastFailed ? (
+    <p className="border-l-4 border-warn bg-surface px-4 py-3 text-sm">
+      The last lookup failed, so the calls below are from the result still on screen.
+    </p>
+  ) : null;
   if (proof.length === 0) {
     return (
-      <div className="bg-surface px-6 py-6 text-sm">
-        You are looking at a sample token, so no request has been made yet. Paste any token address above and every CoinMarketCap call
-        behind the result shows up here, with its raw response.
+      <div className="space-y-4">
+        {failedNote}
+        <div className="bg-surface px-6 py-6 text-sm">
+          You are looking at a sample token, so no request has been made yet. Paste any token address above and every CoinMarketCap
+          call behind the result shows up here, with its raw response.
+        </div>
       </div>
     );
   }
@@ -362,6 +439,7 @@ function ProofDrawer({ proof, source }: { proof: ApiProof[]; source: DataSource 
         : "These requests ran against CoinMarketCap. Where a call failed or came back unusable, the bundled snapshot is shown instead.";
   return (
     <div className="space-y-4">
+      {failedNote}
       <p className="text-sm">
         {intro} No API key was sent unless the server has one configured.
       </p>

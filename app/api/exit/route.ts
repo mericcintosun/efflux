@@ -9,6 +9,12 @@ import { exitQuerySchema } from "@/lib/schemas";
 // directly, which sidesteps CORS and keeps an optional API key on the server.
 // With the default ADAPTER_MODE=fake it answers from the seed tokens.
 // Success: the ApiEnvelope. Failure: { error, hint } with a matching status.
+//
+// Idempotency guard: this GET is read-only and idempotent. It writes nothing,
+// so a double click or a retry cannot change state. A success carries
+// SUCCESS_CACHE_CONTROL so a repeat inside a minute is served from cache.
+
+const SUCCESS_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -17,7 +23,9 @@ export async function GET(req: NextRequest) {
 
   const { platform, address } = parsed.data;
   const envelope = await getAdapter().lookup(platform, address);
-  if (envelope.data) return NextResponse.json(envelope, { status: 200 });
+  if (envelope.data) {
+    return NextResponse.json(envelope, { status: 200, headers: { "Cache-Control": SUCCESS_CACHE_CONTROL } });
+  }
 
   const code = envelope.error?.error ?? "not_found";
   return NextResponse.json(errorBody(code), { status: ERROR_STATUS[code] });
