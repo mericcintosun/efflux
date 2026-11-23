@@ -321,6 +321,90 @@ None, no command access.
 
 Run `npm run proof`, fix the holders POST body (the 400), then decide the open question on bounding `/api/exit`. Phase 4 can then move on to Mission 2 and 3 polish on live data.
 
+## Phase 4 log (sponsor proof, hidden cuts waterfall, responsive and security pass)
+
+### Goal
+
+Prove the CoinMarketCap integration is load-bearing (README bounty table, endpoint list checked against code, DELIVERY.md), ship the second wow (the cuts waterfall plus "repeat tomorrow" on `/play`, DEMO.md step 7), make every route work at 360, 768 and 1280 px, tighten metadata and the landing band, then a web hygiene pass with SECURITY.md.
+
+### Status
+
+All five Part A slices and Part B written by file editing only. Build, tests, proof and every visual check are unverified until the runner and a person run them.
+
+- Slice 1: `LOOKUP_BUDGET_MS = 4000` (`lib/config.ts:38`). `lookupWithinBudget` (`lib/adapter.ts`, around line 207) now races against it, and `/api/exit` calls it (`app/api/exit/route.ts:30`), so every user lookup is bounded at 4 s and a late one returns the typed `upstream_timeout` (504) with the hint "Try again: the second try is usually served from the 60 second cache" (`lib/errors.ts`). Input is still `exitQuerySchema.safeParse` in the route; the key is still read only by `getCmcKey()`. Proof drawer behavior unchanged (a failed call keeps the last good entries). Holders POST 400: parked, see below.
+- Slice 2: README "Bounty" table (`README.md:36` to `:40`), the one-ranking sentence, the depth statement (`README.md:44`), the endpoint table note, and the rewritten "What the API made possible and where it pushed back" (four concrete points). `DELIVERY.md` new. `.env.example` demo address values are now empty placeholders (the defaults stay in `lib/config.ts`). `/notes` API note matches the README.
+- Slice 3: `cutsWaterfall()` in `lib/simulate.ts:203` (display rounding only, largest remainder so the printed cuts add up to the printed gap; no model change). `components/cuts-waterfall.tsx` new: wallet row (DEEP), four cut rows (INK blocks, staircase from the right), payout row (ACCENT), a sum line, `efflux-wipe` entrance; empty state (zero holding) with "Paste an address", `ErrorState` when a number is not finite. `components/exit-stage.tsx:88` renders it on `/play`; the compact sticky panel on `/` keeps the loss bar. The drain toggle reads "Assume tomorrow repeats the last 24 hours (LP moved X%)". `PlaySkeleton` has waterfall placeholder rows. Tests: `tests/simulate.test.ts:73` asserts the sum for the three seed tokens at 0 and 10 wallets ahead with all four tax and drain combinations, plus "repeat tomorrow lowers the payout".
+- Slice 4: mobile nav disclosure in `components/site-header.tsx` (`md:hidden` button with `aria-expanded` and `aria-controls`, `hidden md:block` desktop nav, `min-h-11` links, closes on route change, header still `h-16` solid with `border-b`, one `BrandMark`). Proof drawer JSON and the `/notes` code block scroll in `max-w-full overflow-x-auto` boxes; the `/notes` card grid is `grid-cols-1` (minmax 0) so the code never widens the page. Holder list lost its `min-w-[36rem]`; holder names and the token address truncate with a `title`. `min-h-11` on sample buttons, chain buttons, submit, toggles, slider, "Will not sell", copy, drawer button, drawer summaries, state buttons, chapter links (below md), pool buttons, error page buttons, footer links.
+- Slice 5: landing band at the end of `/` (surface, after the ground method band) with "Open the simulator" to `/play` (`app/page.tsx:105`). Root metadata (`app/layout.tsx`): default title "Efflux: what your token really pays", template `%s | Efflux`, 151 character description, `openGraph.images`, `twitter.card: "summary_large_image"`, `metadataBase` set to the README live URL `https://efflux-eight.vercel.app` (was `https://efflux.vercel.app`). Empty-state microcopy: proof drawer before any call, queue with no eligible holders (new line under the slider), zero liquidity (now an `EmptyState` with "Paste an address").
+- Part B: security headers in `next.config.ts`, `SECURITY.md`, footer "About and security" line in `app/layout.tsx`.
+
+### Decisions
+
+- **`/api/exit` budget: yes, 4 s.** Every step now meets the 5 s rule. A cold token may need one "Try again" click; the late load keeps running and warms the 60 s cache, so the retry is fast. The share link and the API route share one function (`lookupWithinBudget`) and one constant (`LOOKUP_BUDGET_MS`); routes still never import `lib/config`.
+- **Waterfall on `/play` only.** The sticky story panel on `/` would grow by six rows and cover most of a phone screen, so it keeps the one-line loss bar (DEMO step 4 unchanged). The waterfall needs display rounding, not model changes: `exitQuote()` already sums exactly; `cutsWaterfall()` rounds wallet and payout first and spreads the remainder, so "$a + $b + $c + $d = $gap" is true to the unit on screen.
+- **DEMO step 7 wording.** The spec text says "five rows"; the waterfall has six (wallet, four cuts, payout), so step 7 describes them by name instead of a count.
+- **Signatures 2 and 3 left to Phase 5,** as the scope fence says. The waterfall is plain HTML blocks, so it adds no second animation library and does not touch `components/pool-scene*.tsx` beyond `min-h-11` on two buttons.
+- **Landing band at the end of `/`.** Inserting it after the hero would put two surface bands next to each other (the problem band) or two ground bands (the first chapter); at the end it keeps the L5 alternation and doubles as a second CTA band.
+- `lib/cmc.ts:64` keeps its `console.log` `[core]` line: server-only request logging that Phase 2 asked for. No `console.` remains in `app/` or `components/`.
+
+### Part B notes
+
+- **B1 contract front: skipped.** `Glob contracts/**` returns no files; the repo has no contracts.
+- **B2 wallet front: verifies vacuously.** `Grep "eth_requestAccounts|wallet_|personal_sign|eth_sign|ethers|wagmi|window\.ethereum"` over `app components lib`: no matches. No wallet code, no approvals, no signing.
+- **B3 web hygiene greps (all over `app components lib`):**
+  - `sk-|PRIVATE_KEY|[0-9a-fA-F]{64}|CMC_PRO_API_KEY`: only `lib/cmc.ts` (comments and the header line) and `lib/config.ts` (`getCmcKey`), both server-only.
+  - `"use client"` files and `from "@/lib/(config|cmc|adapter)"`: no client file imports `lib/config`, `lib/cmc` or `lib/adapter`.
+  - `NEXT_PUBLIC_BRAND_FILES` carries image file names only (`next.config.ts:17`).
+  - `target=`: no `target="_blank"` anywhere. The footer GitHub link carries `rel="noopener noreferrer"` anyway.
+  - `http://`: only the SVG namespace in `app/icon.svg` (a never-touch asset, not a request).
+  - Forms: one `<form>` (`components/play-desk.tsx`), `preventDefault` then `fetch("/api/exit...")`. CMC calls are server-side; the UI names CoinMarketCap as the source.
+  - `useSearchParams`: none (`/play` reads the `searchParams` prop on the server). No `writeFile` or `node:` import in `app/` or `lib/`; no `runtime = "edge"` export.
+  - Fixed (low): no baseline security headers. Added `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY` and a `Permissions-Policy` in `next.config.ts`.
+- **B4** `SECURITY.md` with the four sections plus "Data and keys".
+- **B5** footer line in `app/layout.tsx` (the shared shell, every route).
+- **B6** both fronts clean, nothing found and left unfixed. **Blockaid note:** the app has no wallet flow, so a wallet security warning is not expected; if one shows, it is about the domain, not a transaction.
+
+### Failed attempts
+
+None.
+
+### Files changed
+
+New: `components/cuts-waterfall.tsx`, `DELIVERY.md`, `SECURITY.md`, `.farm-commits.json`.
+Edited: `lib/config.ts`, `lib/adapter.ts`, `lib/errors.ts`, `lib/simulate.ts`, `app/api/exit/route.ts`, `tests/simulate.test.ts`, `components/exit-stage.tsx`, `components/play-desk.tsx`, `components/route-states.tsx`, `components/site-header.tsx`, `components/story-scroll.tsx`, `components/pool-scene-frame.tsx` (`min-h-11` only), `app/layout.tsx`, `app/page.tsx`, `app/opengraph-image.tsx`, `app/notes/page.tsx`, `app/error.tsx`, `app/not-found.tsx`, `app/play/error.tsx`, `app/notes/error.tsx`, `next.config.ts`, `.env.example`, `README.md`, `DEMO.md`, `HANDOFF.md`.
+
+### Commands run
+
+None, no command access.
+
+### Unmet or unverified items (evidence)
+
+- **Holders POST 400, parked (severity: medium).** The README `cmc-call` block now shows only 429s (`README.md`, "Captured by `npm run proof`"), and neither `fixtures/cmc/holders.json` (hand-written) nor the code shows what body CMC expects, so no speculative change was made to `holdersCall` (`lib/cmc.ts:151`) or `scripts/proof.mjs:135` and `:185`. Shortest fix path: run `npm run proof` from a machine that is not rate limited, read the holders status and response text; if it is 400, try `platform` as a chain id or `chainId`, or the body keys the OpenAPI page lists for `/v1/dex/holders/list`, then change the body in `holdersCall`, both proof calls and `seedProof` in `lib/adapter.ts`, and pin it with a test in `tests/cmc-parse.test.ts`.
+- Everything that needs a command: `npm run build`, `npm test` (the 27 new waterfall cases), `npm run proof`, the 360, 768 and 1280 px checks, Lighthouse, the og:image fetch.
+- The sticky story panel on `/` is still tall on a 360 px phone (curve hidden, loss bar, slider, two toggles). Not changed in this phase; Phase 5 frontend pass.
+- HANDOFF "Definition of done" below still names `https://efflux.vercel.app`; the README and `metadataBase` use `https://efflux-eight.vercel.app`. Confirm which one is the Vercel production alias.
+- `cutsWaterfall` for a position under $100 rounds to cents; the sum is exact in cents, untested on a live token.
+
+### Open questions
+
+- Which host is the production alias, `efflux-eight.vercel.app` (README) or `efflux.vercel.app` (Definition of done)? `metadataBase` follows the README.
+- Is the track name "Markets and Trading Tools" exactly as written on the DoraHacks form? DELIVERY.md asks to confirm it in the Ask Question tab.
+
+### Manual checklist (facts only a person can supply)
+
+1. Run `npm run proof`; read `cmc-call` for a 200 on the holders POST (if 400, follow the parked fix path above), and `demo-timing` for every token under 5000 ms.
+2. Run `npm test` once and commit `tests/__snapshots__/` if it is new.
+3. On the live URL in a private window: walk DEMO.md steps 1 to 8, no console errors. Step 7: toggle "Assume tomorrow repeats the last 24 hours" and watch the LP drain row fill and the payout drop.
+4. Devtools at 360, 768 and 1280 px: no horizontal page scroll, the Menu button opens the nav and reaches all three routes, the proof drawer JSON scrolls inside its own box.
+5. View source on `/`: `og:image` is an absolute `https://efflux-eight.vercel.app/opengraph-image...` URL and loads. Lighthouse performance and accessibility about 80 or higher.
+6. With `ADAPTER_MODE=real`, throttle CoinMarketCap once: the "Bundled snapshot" note appears, a lookup over 4 s shows "Try again", and the retry answers.
+7. `curl -I` the live URL: the four security headers are present.
+8. At submission time, work through `DELIVERY.md`.
+
+### Next best step
+
+Phase 5: kit signatures 2 and 3 (the pool follows the story controls; the chapter-linked camera move) and the frontend pass, starting with the sticky story panel height on phones. Before that, run `npm run proof` and settle the holders body.
+
 ## 5. Definition of done
 
 - Deployed at https://efflux.vercel.app on live keyless CMC data, all three demo tokens loading on the live URL.
