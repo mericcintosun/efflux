@@ -7,7 +7,7 @@
 // per token to the seed when a live load fails. Server-side only.
 
 import { CMC_ENDPOINTS, loadExitBundle } from "@/lib/cmc";
-import { DEMO_TOKENS, KEYLESS_BASE, LIST_BUDGET_MS } from "@/lib/config";
+import { DEMO_TOKENS, KEYLESS_BASE, LIST_BUDGET_MS, LOOKUP_BUDGET_MS } from "@/lib/config";
 import { findToken, findTokenByAddress, tokens } from "@/lib/data/seed";
 import { errorBody } from "@/lib/errors";
 import type { ApiEnvelope, ApiProof, Platform, TokenSnapshot } from "@/lib/types";
@@ -198,21 +198,21 @@ export const realAdapter: ExitAdapter = {
 };
 
 /**
- * Server-side lookup for a shared /play link, raced against LIST_BUDGET_MS so
- * the page never waits on a slow CoinMarketCap answer. Fallback branch: a late
- * lookup comes back as an `upstream_timeout` envelope; the page then shows the
- * sample token with an error state whose retry button runs the lookup again
- * from the browser, by which time the 60 s cache is usually warm.
+ * Every user lookup, raced against LOOKUP_BUDGET_MS: GET /api/exit and the
+ * server-resolved shared /play link both call this, so no lookup waits more than
+ * 4 s on CoinMarketCap. Fallback branch: a late lookup comes back as an
+ * `upstream_timeout` envelope and the UI shows its "Try again" button. The late
+ * load keeps running and warms the 60 s cache, so the retry is usually fast.
  */
 export async function lookupWithinBudget(platform: Platform, address: string): Promise<ApiEnvelope<TokenSnapshot>> {
-  const env = await Promise.race([getAdapter().lookup(platform, address).catch(() => null), budget(LIST_BUDGET_MS)]);
+  const env = await Promise.race([getAdapter().lookup(platform, address).catch(() => null), budget(LOOKUP_BUDGET_MS)]);
   if (env === LATE || env === null) {
     const code = env === LATE ? "upstream_timeout" : "upstream_error";
     return {
       source: "none",
       data: null,
       proof: [],
-      message: env === LATE ? `CoinMarketCap did not answer within ${LIST_BUDGET_MS / 1000} s.` : "The lookup failed on our server.",
+      message: env === LATE ? `CoinMarketCap did not answer within ${LOOKUP_BUDGET_MS / 1000} s.` : "The lookup failed on our server.",
       error: errorBody(code),
     };
   }

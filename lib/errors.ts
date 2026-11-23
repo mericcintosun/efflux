@@ -11,7 +11,7 @@ export interface ErrorBody {
 
 const HINTS: Record<ErrorCode, string> = {
   invalid_input: "Check the chain and the token address, then try again.",
-  upstream_timeout: "CoinMarketCap took too long to answer, so try again in a moment.",
+  upstream_timeout: "CoinMarketCap took more than 4 seconds to answer. Try again: the second try is usually served from the 60 second cache.",
   upstream_error: "CoinMarketCap returned an error, so try again in a minute.",
   parse_failure: "CoinMarketCap answered, but not with data Efflux can read.",
   not_configured: "This server is not set up for that request.",

@@ -29,6 +29,14 @@ export const CACHE_SECONDS = 60;
  */
 export const LIST_BUDGET_MS = 4000;
 
+/**
+ * Time budget for one user address lookup (GET /api/exit and a shared /play
+ * link resolved on the server). A lookup still running after this returns the
+ * typed upstream_timeout error; the late load keeps warming the 60 s fetch
+ * cache, so pressing "Try again" usually answers fast.
+ */
+export const LOOKUP_BUDGET_MS = 4000;
+
 /** Lifetime of the in-process holders memo (the POST is not in the Next data cache). */
 export const HOLDERS_MEMO_MS = CACHE_SECONDS * 1000;
 
