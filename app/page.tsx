@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PoolSceneFrame } from "@/components/pool-scene-frame";
 import { EmptyState } from "@/components/route-states";
+import { Button } from "@/components/ui/button";
 import { SceneSlot } from "@/components/scene-slot";
 import { StoryScroll } from "@/components/story-scroll";
 import { getAdapter } from "@/lib/adapter";
 
 export const metadata: Metadata = {
-  title: "Story: what selling your DEX token actually pays",
+  title: "Story: what your token really pays",
 };
 
 // No searchParams here, so the story is an ISR page: the demo token list is
@@ -90,6 +91,19 @@ export default async function Home() {
               Read the method, the endpoint list and a real request with its response
             </Link>
           </p>
+        </div>
+      </section>
+
+      {/* Landing band: what Efflux does and for whom, one sentence plus one control. Surface, after the ground method band. */}
+      <section className="bg-surface" aria-labelledby="landing-who">
+        <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <h2 id="landing-who" className="efflux-wipe-view max-w-[28ch] text-2xl leading-tight md:text-4xl">
+            For anyone holding a small DEX token on Base, BNB Chain or Solana: paste the token, enter what your wallet shows, and see
+            what a sale pays before you press sell.
+          </h2>
+          <Button asChild size="lg" className="mt-10 min-h-11">
+            <Link href="/play">Open the simulator</Link>
+          </Button>
         </div>
       </section>
     </>

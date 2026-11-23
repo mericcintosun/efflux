@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { DEEP, GROUND, INK, MAGENTA } from "@/lib/brand-colors";
 
-export const alt = "Efflux: what selling your DEX token actually pays";
+export const alt = "Efflux: what your token really pays";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -16,7 +16,7 @@ export default function OpengraphImage() {
           <div style={{ fontSize: 44, lineHeight: 1.15, fontWeight: 700 }}>
             Your wallet says $5,000. The pool decides what you get.
           </div>
-          <div style={{ fontSize: 26 }}>Real pools and holders from the CoinMarketCap DEX API</div>
+          <div style={{ fontSize: 26 }}>What your token really pays, from CoinMarketCap DEX pools and holders</div>
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 18, marginLeft: 40 }}>
           <div style={{ width: 70, height: 420, background: INK }} />
