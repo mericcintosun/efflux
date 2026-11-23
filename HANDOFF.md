@@ -47,7 +47,7 @@ All three pages are linked from the header (`Story`, `Simulator`, `Notes`) and t
 ### File map
 
 - `lib/simulate.ts`: the whole model, pure functions. `exitQuote()` returns receive amount, loss breakdown (impact, tax, drain, queue), the 0..N curve and pool level.
-- `lib/cmc.ts`: **real CoinMarketCap integration**. `loadExitBundle(platform, address)` calls five DEX endpoints on the keyless host (or the keyed host when `CMC_PRO_API_KEY` is set), 8 s timeout and one retry per call, caches 60 s, records every call as `ApiProof`, returns typed `error` codes. Pickers live in `lib/cmc-parse.ts` (Phase 2).
+- `lib/cmc.ts`: **real CoinMarketCap integration**. `loadExitBundle(platform, address)` calls five DEX endpoints on the keyless host (or the keyed host when `CMC_PRO_API_KEY` is set). Every call is aborted after 8 seconds, and a 429, a network error or a timeout gets exactly one retry after 600 ms. It caches 60 s, records every call as `ApiProof`, returns typed `error` codes. Pickers live in `lib/cmc-parse.ts` (Phase 2).
 - `lib/data.ts`: three seed tokens (FIN on Base, MOSS on BNB Chain, SALT on Solana) with pools, 12 to 13 holders each, sell tax and 24h LP change.
 - `components/exit-stage.tsx`: the live panel (wallet shows, sale pays, curve, loss bar, queue slider, tax and drain toggles). Shared by `/` and `/play`.
 - `components/pool-scene-frame.tsx` + `components/pool-scene.tsx`: kit K6, the 3D pool (see below).
@@ -508,6 +508,93 @@ Phase 6 starts from the judge findings and the `npm run proof` output: compare t
 6. Run `npm run proof` and commit the rewritten README blocks; run `npm test` once and commit `tests/__snapshots__/`.
 7. Walk DEMO.md steps 1 to 8 on the live URL in a private window, once at phone width.
 8. Paste the fields from `SUBMISSION.md` and work through `DELIVERY.md`.
+
+## Phase 6 log (first jury fixes)
+
+### Goal
+
+The claims on screen and in the docs match what the code does, and the first screen of `/` and `/play` looks finished: 5 live endpoints (search is a wrapper only), one retry sentence everywhere, rounded percentages, no duplicated switch line, a timestamped source note under the hero, and the same BRETT on `/` and `/play`.
+
+### Status
+
+Slices 0 to 5 written by file editing only. Build, tests and every live check are unverified until the runner and a person run them.
+
+### Decisions
+
+- **Endpoint list:** `CMC_ENDPOINTS` (`lib/cmc.ts:55`) gained a `live` flag. `/notes`, the home API band (`app/page.tsx`) and `seedProof` (`lib/adapter.ts:49`) show only `live: true` rows, so the count is 5 everywhere and fake-mode proof shows 5 entries, not 6. `/notes` lists `/v1/dex/search` separately as "Not live: wrapper exists in lib/cmc.ts, not called by the live UI yet."
+- **Retry sentence (one wording, matching `lib/cmc.ts:103` and `lib/config.ts:14` to `:20`):** "Every call is aborted after 8 seconds, and a 429, a network error or a timeout gets exactly one retry after 600 ms." The code has a fixed 600 ms wait, no backoff; other HTTP errors are not retried.
+- **Percent formatter:** `fmtPctValue()` in `lib/simulate.ts` (next to `fmtPct`), one decimal, never "-0.0%". Used for the LP toggle and the sell tax in `components/exit-stage.tsx`, the tax and drain rows in `components/cuts-waterfall.tsx`, share of supply in `components/play-desk.tsx`, the "Hidden cuts" chapter line in `components/story-scroll.tsx` and the worked example in `app/notes/page.tsx`. The model numbers are unchanged. A side effect: the sell tax now prints "5.0%" where it printed "5%".
+- **Duplicate line:** the duplication was in `components/exit-stage.tsx` (compact mode), not `story-scroll.tsx`. The two switches rendered twice (once inside the phone `Fold`, once in a `hidden sm:block` copy), so the server HTML printed "No sell tax" and "LP did not shrink in 24 hours" twice. The switches now render once and the phone `Fold` holds only the legend ("Where the gap goes"). On phones the sticky panel grows by the two switch buttons. It still scrolls inside `max-h-[55svh]`.
+- **One number for BRETT:** both routes already used the same call, `getAdapter().listTokens()` (`app/page.tsx` `Home`, `app/play/page.tsx:41`), and both take the first token. The difference was timing: `/` was ISR (`revalidate = 60`, prerendered at build), while `/play` is dynamic. `/` now calls `await connection()` (`next/server`) and renders per request like `/play`. `force-dynamic` was rejected because it turns every fetch into `no-store` and would bypass the 60 s CoinMarketCap cache.
+- **Source note:** moved from the sticky panel badge (`components/story-scroll.tsx`) to `SourceNote` in `app/page.tsx`, under the hero paragraph, inside the first band and in server HTML. On live data it reads "Live from CoinMarketCap, BRETT on Base, fetched HH:MM UTC" from the token's own `snapshotAt` (set in `lib/cmc.ts` `loadExitBundle` when the bundle is built). On fallback it reads `SOURCE_LABEL` exactly as before ("Bundled snapshot, CoinMarketCap was unavailable for some tokens", or "Seed data, not a live response" in fake mode). The `source` prop on `StoryScroll` was removed.
+- **CTA sentence:** "Open the simulator and paste the token you hold to see what a sale pays before you press sell." No input was added.
+
+### Failed attempts
+
+None.
+
+### Files changed
+
+`.gitignore`, `README.md`, `lib/cmc.ts`, `lib/adapter.ts`, `lib/simulate.ts`, `app/notes/page.tsx`, `app/page.tsx`, `components/exit-stage.tsx`, `components/cuts-waterfall.tsx`, `components/play-desk.tsx`, `components/story-scroll.tsx`, `DEMO.md`, `HANDOFF.md`, `.farm-commits.json`. `package.json` is unchanged. No new route, dependency, env variable or schema change.
+
+### Commands run
+
+None, no command access.
+
+### Unmet or unverified items (evidence)
+
+- Everything that needs a command: `npm run build`, `npm test`, `npm run proof`, the live spot checks.
+- **A failed LP call reads as "did not shrink".** `parseLpChangePct` (`lib/cmc-parse.ts:133`) returns 0 when the liquidity-change call fails or has fewer than 2 points, and `loadExitBundle` still marks the bundle `live` if token and pools succeeded. A 429 on that one call can therefore show "LP did not shrink in 24 hours" on a live token. The Phase 6 per-request rendering removes the build-time copy, but not this case. Fixing it means carrying "LP unknown" through `TokenSnapshot`, which is a type change, so it is an open question below.
+- No test covers "a sale is split across pools and all pools end at the same price" directly (see ledger item 5.5).
+- `/` now waits up to `LIST_BUDGET_MS` (4 s) on a cold cache per request instead of serving a prerendered page. `app/loading.tsx` (`HomeSkeleton`) streams meanwhile. Check the landing TTFB on the live URL.
+- `SUBMISSION.md:40` still says "planned for the search box". It belongs to the farm (ledger, rank 3), so it was not edited.
+
+### Open questions
+
+- Carry an "LP change unknown" state when the liquidity-change call fails (type change to `TokenSnapshot.lpChange24hPct`, ask first)?
+- Holders POST 400 is still parked from Phase 4.
+
+### Next best step
+
+Runner: build, test, redeploy. Then spot-check the landing note, `/play` "LP moved -14.1%", `/notes` "5 DEX endpoints live", and run the `git rm --cached` line below. Then Jüri 2, then Phase 7.
+
+### Left to the builder
+
+- Run `git rm --cached .farm-delta.md .farm-scaffold.json public/__farm.txt`, then commit. `public/__farm.txt` is served on the live site (`/__farm.txt`, per the technical judge) until this runs and the site is redeployed. The agent has no deletion tool, so it could not do this itself.
+- Record the demo video and paste its link in the form.
+- Confirm the exact track name in the DoraHacks form.
+- Team names and eligibility (Phase 5 manual submit checklist, items 1 and 2).
+
+## Phase 6 fix ledger
+
+| # | Panel item | Outcome | Evidence |
+| --- | --- | --- | --- |
+| R1 | X post with #BuildwithCMC linking the BUIDL page and demo video, URL pasted in the form (blocker, submission-text) | handled by the farm | Verbatim: "BUIDL sayfası oluşunca #BuildwithCMC etiketli, DoraHacks BUIDL sayfasına ve demo videosuna link veren X paylaşımını yap, paylaşım URL'sini forma yapıştır." Builder note: this post and its URL in the form are the only blocker and take about 10 minutes by hand. |
+| R2a | Repo hygiene: ignore farm artifacts | applied | `.gitignore:10` `.farm-delta.md`, `.gitignore:11` `public/__farm.txt` (`.farm-scaffold.json` already at `:9`). `.farm-*` and `.farm-live.json` deliberately not added. |
+| R2b | Repo hygiene: `git rm` the farm files | declined for IDENTITY.md and `.farm-live.json`; left to the builder for the rest | IDENTITY.md is the identity contract that later phases read. `.farm-live.json` names the env keys for the live deploy and the runner reads it from disk. The `git rm --cached` line is under "Left to the builder" above. |
+| R2c | README: `npm test` plus what `tests/simulate.test.ts` checks | applied | `README.md`, end of "How the number is built": two lines. They name only the assertions that exist (`tests/simulate.test.ts:21`, `:36`, `:43`, `:62`, `:89`, `:97`). |
+| R3a | `/notes`: "5 DEX endpoints live", search shown separately | applied | `app/notes/page.tsx` endpoint band heading and the separate "Not live" list. `lib/cmc.ts:55` `live` flag. |
+| R3b | `lib/cmc.ts` search wording | applied | `lib/cmc.ts:61` `use` text; `lib/cmc.ts:267` doc comment on `searchTokens`. |
+| R3c | README endpoint row, count and "token search" feature bullet | applied | `README.md` endpoint table (5 live rows plus one "not live" row and the sentence above it). Search bullet removed from "What we would build next" and replaced by a "Not wired yet" note. |
+| R3d | Backoff vs one retry | applied | No "exponential" or "backoff" claim left. Code: `lib/cmc.ts:103` loop, `lib/config.ts:17` `CMC_RETRIES = 1`, `:20` `CMC_RETRY_DELAY_MS = 600`. One sentence in README (rate limits bullet and tech stack), `/notes` pushback paragraph, `lib/cmc.ts:8` and HANDOFF section 2. |
+| R3e | SUBMISSION.md endpoint section and deck slide 6 (the `/v1/dex/search` row) | handled by the farm | `SUBMISSION.md:40` untouched by the agent. |
+| R4 | Deck slide 7, replace "1,000 users x $5,000 x 10% = $500,000 of surprises avoided" with the live BRETT result and the CLMM caveat | handled by the farm | Deck surface. No file written. |
+| R5a | Round the LP percentage | applied | `fmtPctValue` in `lib/simulate.ts`. `components/exit-stage.tsx:80` "LP moved ${fmtPctValue(lp)}". Also used in `cuts-waterfall.tsx`, `play-desk.tsx`, `story-scroll.tsx` and `app/notes/page.tsx`. Grep for a raw `Pct}%` interpolation in `app/` and `components/`: no matches. |
+| R5b | Duplicate "No sell tax / LP did not shrink" on the landing | applied | `components/exit-stage.tsx` compact branch: switches render once. |
+| R6a | Timestamped source note under the hero | applied | `app/page.tsx` `SourceNote`, rendered inside `intro` above the chapters. Time from `token.snapshotAt`. |
+| R6b | Same adapter call for BRETT on `/` and `/play` | applied (was already the same call; the render timing differed) | `app/page.tsx` `await connection()` plus `getAdapter().listTokens()`. `app/play/page.tsx:41` uses the same call. |
+| R6c | "Paste the token you hold" has no input | applied | `app/page.tsx` CTA band: "Open the simulator and paste the token you hold to see what a sale pays before you press sell." |
+| 5.1 | Live deploy mode | could not verify | `lib/adapter.ts` `getAdapter()` defaults to fake unless `ADAPTER_MODE === "real"`. `lib/config.ts` does not read `ADAPTER_MODE`. `.env.example:11` `ADAPTER_MODE=fake`. `.farm-live.json` has `requiredEnv: []` and no `ADAPTER_MODE` key, so whether the runner's live rule sets `real` on Vercel is not visible in the repo. Vercel env not touched. |
+| 5.2 | Keyless 429 under concurrent users | could not verify (live only) | `lib/cmc.ts:121`: on 429, wait 600 ms and retry once. A second 429 returns `upstream_error`. `loadDemoTokens` (`lib/adapter.ts`) then serves the seed token for that chain, and the note reads "Bundled snapshot, CoinMarketCap was unavailable for some tokens" (`lib/data.ts:11`). In that case the story token is the seed FIN, not BRETT. A pasted address shows an error with "Try again". |
+| 5.3 | Random address on `/play` | verified by reading | `app/api/exit/route.ts:26` validates only the chain format (`lib/schemas.ts:17`, `EVM_ADDRESS`, `SOLANA_ADDRESS`), then `lookupWithinBudget` calls `realAdapter.lookup` = `loadExitBundle` for any address. In fake mode only the three seed addresses resolve (`lib/adapter.ts` `fakeAdapter.lookup`). |
+| 5.4 | BNB sample (MOSS) | verified by reading | `lib/config.ts:70`: `DEMO_TOKENS.bsc` is null unless `EFFLUX_DEMO_BSC_ADDRESS` is set (`.env.example:26`, empty). When unset, `loadDemoTokens` serves the seed MOSS for BNB Chain, names it in the message, and sets the list source to `snapshot`. So in real mode without that variable the note always reads "Bundled snapshot", even when BRETT and BONK load live. |
+| 5.5 | `simulate.ts` correctness | partially covered | `tests/simulate.test.ts:43` "splits the gap exactly into impact, tax, drain and queue", `:21` pinned output at 0, 5 and 10, `:36` monotone payout, `:97` never above the wallet. No test asserts the split across pools or the equal final price (`sellInto`, `lib/simulate.ts:78`). That is claimed only in the comment at `lib/simulate.ts:8`. |
+| 5.6 | Recharts and 3D library claims | verified, nothing to change | Grep `recharts` across the repo (excluding node_modules): no matches in package.json, README, `/notes` or UI. 3D claim in README "Tech stack" matches `package.json:16`, `:17`, `:25` (drei ^10.7.9, fiber ^9.8.2, three ^0.187.0). |
+| 5.7 | Strongest objections: no swap-quote comparison; CLMM as constant product | verified, nothing to change | The "leans cautious" sentence is already on `/notes` (heading "The estimate leans cautious, and four things can move it." and the CLMM bullet in the same band). README says the same under "How the number is built". Swap-quote comparison: jüri önerisi, kapsam dışı: yeni özellik. |
+| 5.8 | Track name "Markets and Trading Tools" | left to the builder | Not verifiable from the repo. |
+| B1 | Demo video recording and link in the form | left to the builder | |
+| B2 | `git rm --cached` command | left to the builder | See "Left to the builder". |
+| B3 | Team names and eligibility | left to the builder | Phase 5 manual submit checklist items 1 and 2. |
 
 ## 5. Definition of done
 
