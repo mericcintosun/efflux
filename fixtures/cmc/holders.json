@@ -1,0 +1,41 @@
+{
+  "_note": "Schema-shaped, hand-written from the OpenAPI field names (balance, actualBalance, percent, tags). Not a captured CoinMarketCap response.",
+  "data": [
+    {
+      "address": "0xholder00000000000000000000000000000000a1",
+      "balance": "1000000000000000000000",
+      "actualBalance": "1000",
+      "percent": 0.1,
+      "tags": ["Uniswap V2 LP"]
+    },
+    {
+      "address": "0xholder00000000000000000000000000000000b2",
+      "balance": "5000000000000000000",
+      "actualBalance": "5",
+      "percent": 0.0005,
+      "tags": []
+    },
+    {
+      "address": "0xholder00000000000000000000000000000000c3",
+      "balance": "0",
+      "actualBalance": "0",
+      "percent": 0,
+      "tags": []
+    },
+    {
+      "address": "0x000000000000000000000000000000000000dEaD",
+      "balance": "200000000000000000000",
+      "actualBalance": "200",
+      "percent": 0.02,
+      "tags": [{ "name": "Burn / Dead address" }]
+    },
+    {
+      "address": "0xholder00000000000000000000000000000000e5",
+      "balance": "300000000000000000000",
+      "actualBalance": "300",
+      "percent": 0.03,
+      "tags": ["Binance Hot Wallet"]
+    }
+  ],
+  "status": { "error_code": "0", "error_message": "SUCCESS" }
+}

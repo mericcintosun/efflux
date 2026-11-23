@@ -1,0 +1,8 @@
+{
+  "_note": "Schema-shaped, hand-written. The sell tax field name is a candidate from lib/cmc-parse.ts, not a captured CoinMarketCap response.",
+  "data": {
+    "buyTax": "0",
+    "sellTax": "0.05"
+  },
+  "status": { "error_code": "0", "error_message": "SUCCESS" }
+}

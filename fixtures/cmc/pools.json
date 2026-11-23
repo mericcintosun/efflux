@@ -1,0 +1,32 @@
+{
+  "_note": "Schema-shaped, hand-written from the OpenAPI field names (liqUsd, t0, t1). Not a captured CoinMarketCap response.",
+  "data": [
+    {
+      "addr": "0xpool000000000000000000000000000000000b22",
+      "exn": "Uniswap",
+      "v": "v3",
+      "liqUsd": "45000.5",
+      "fee": 100,
+      "t0": { "sym": "TKN", "addr": "0xtoken" },
+      "t1": { "sym": "USDC", "addr": "0xusdc" }
+    },
+    {
+      "addr": "0xpool000000000000000000000000000000000a11",
+      "exn": "Aerodrome",
+      "v": "v2",
+      "liqUsd": 120000,
+      "fee": 0.003,
+      "t0": { "sym": "TKN", "addr": "0xtoken" },
+      "t1": { "sym": "WETH", "addr": "0xweth" }
+    },
+    {
+      "addr": "0xpool000000000000000000000000000000000c33",
+      "exn": "Uniswap",
+      "v": "v2",
+      "liqUsd": 0,
+      "t0": { "sym": "TKN", "addr": "0xtoken" },
+      "t1": { "sym": "WETH", "addr": "0xweth" }
+    }
+  ],
+  "status": { "error_code": "0", "error_message": "SUCCESS" }
+}

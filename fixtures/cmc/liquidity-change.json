@@ -1,0 +1,11 @@
+{
+  "_note": "Schema-shaped, hand-written from the OpenAPI field names (lcs, tlu). a0, a1 and tu are undocumented and ignored. Not a captured CoinMarketCap response.",
+  "data": {
+    "lcs": [
+      { "t": 1700086400, "tlu": 90000, "a0": 1, "a1": 2, "tu": 5 },
+      { "t": 1700000000, "tlu": 100000, "a0": 1, "a1": 2, "tu": 5 },
+      { "t": 1700043200, "tlu": 95000, "a0": 1, "a1": 2, "tu": 5 }
+    ]
+  },
+  "status": { "error_code": "0", "error_message": "SUCCESS" }
+}
