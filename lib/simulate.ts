@@ -15,7 +15,7 @@
 // 4. The quote side is valued at a constant USD price (WETH, WBNB or SOL do not
 //    move during the simulation).
 
-import type { Holder, TokenSnapshot } from "@/lib/data";
+import type { Holder, TokenSnapshot } from "@/lib/types";
 
 export const MAX_SELLERS = 10;
 
