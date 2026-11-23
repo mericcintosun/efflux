@@ -19,6 +19,7 @@ import {
   CMC_RETRIES,
   CMC_RETRY_DELAY_MS,
   CMC_TIMEOUT_MS,
+  HOLDERS_MEMO_MS,
   KEYED_BASE,
   KEYLESS_BASE,
   LOG_PREFIX,
@@ -103,8 +104,9 @@ async function cmcCall(
         headers,
         body: opts.body ? JSON.stringify(opts.body) : undefined,
         signal: AbortSignal.timeout(CMC_TIMEOUT_MS),
-        // Server cache keeps the shared keyless rate limit happy. POST bodies are
-        // part of the cache key, so the holders call is cached per token too.
+        // Server cache keeps the shared keyless rate limit happy. Every GET is
+        // cached 60 s by the Next data cache. The holders POST is not, so
+        // holdersCall() below memoizes it in process memory for the same 60 s.
         next: { revalidate: CACHE_SECONDS },
       });
       const text = await res.text();
@@ -138,6 +140,38 @@ async function cmcCall(
 
 const json = (r: CallResult): unknown => (r.ok ? r.json : null);
 
+/**
+ * The Next data cache does not keep POST responses, so the holders call gets a
+ * small in-process memo: server memory only, keyed by platform plus address,
+ * HOLDERS_MEMO_MS long, successful answers only. A hit replays the proof
+ * entries of the call that filled it, so the drawer still shows a real request.
+ */
+const holdersMemo = new Map<string, { until: number; result: CallResult; proof: ApiProof[] }>();
+
+async function holdersCall(platform: Platform, address: string, proof: ApiProof[]): Promise<CallResult> {
+  const key = `${platform}:${address.toLowerCase()}`;
+  const now = Date.now();
+  const hit = holdersMemo.get(key);
+  if (hit && hit.until > now) {
+    proof.push(...hit.proof);
+    log(`cmc call /v1/dex/holders/list memo=hit`);
+    return hit.result;
+  }
+  if (hit) holdersMemo.delete(key);
+  const own: ApiProof[] = [];
+  const result = await cmcCall(
+    "/v1/dex/holders/list",
+    { method: "POST", body: { tokenAddress: address, platform: PLATFORM_PARAM[platform] } },
+    own
+  );
+  proof.push(...own);
+  if (result.ok) {
+    if (holdersMemo.size > 200) holdersMemo.clear();
+    holdersMemo.set(key, { until: now + HOLDERS_MEMO_MS, result, proof: own });
+  }
+  return result;
+}
+
 /** True when a 2xx body has no list shape the pool picker understands. */
 function unreadableList(raw: unknown): boolean {
   const v = unwrap(raw);
@@ -159,7 +193,7 @@ export async function loadExitBundle(platform: Platform, address: string): Promi
   const [tokenRes, poolsRes, holdersRes, securityRes, lcRes] = await Promise.all([
     cmcCall("/v1/dex/token", { method: "GET", query }, proof),
     cmcCall("/v1/dex/token/pools", { method: "GET", query }, proof),
-    cmcCall("/v1/dex/holders/list", { method: "POST", body: { tokenAddress: address, platform: PLATFORM_PARAM[platform] } }, proof),
+    holdersCall(platform, address, proof),
     cmcCall("/v1/dex/security/detail", { method: "GET", query }, proof),
     cmcCall("/v1/dex/liquidity-change/list", { method: "GET", query }, proof),
   ]);

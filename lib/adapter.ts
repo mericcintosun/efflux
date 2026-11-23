@@ -7,7 +7,7 @@
 // per token to the seed when a live load fails. Server-side only.
 
 import { CMC_ENDPOINTS, loadExitBundle } from "@/lib/cmc";
-import { DEMO_TOKENS, KEYLESS_BASE } from "@/lib/config";
+import { DEMO_TOKENS, KEYLESS_BASE, LIST_BUDGET_MS } from "@/lib/config";
 import { findToken, findTokenByAddress, tokens } from "@/lib/data/seed";
 import { errorBody } from "@/lib/errors";
 import type { ApiEnvelope, ApiProof, Platform, TokenSnapshot } from "@/lib/types";
@@ -117,10 +117,20 @@ export const fakeAdapter: ExitAdapter = {
   },
 };
 
+const LATE = Symbol("late");
+
+/** Resolves to LATE after `ms`, so a Promise.race can give up on a slow load. */
+function budget(ms: number): Promise<typeof LATE> {
+  return new Promise((resolve) => setTimeout(() => resolve(LATE), ms));
+}
+
 /**
  * Real mode sample list: every DEMO_TOKENS entry loads through loadExitBundle in
- * parallel. A live result is used as is; a failed one (or a chain with no demo
- * address) falls back to the seed token on the same chain.
+ * parallel, each one raced against LIST_BUDGET_MS. A live result inside the
+ * budget is used as is. A failed one, a late one, or a chain with no demo
+ * address falls back to the seed token on the same chain and is named in the
+ * message. The late load keeps running and warms the 60 s cache for the next
+ * request.
  */
 async function loadDemoTokens(): Promise<ApiEnvelope<TokenSnapshot[]>> {
   const chains: Platform[] = ["base", "bsc", "solana"];
@@ -128,9 +138,15 @@ async function loadDemoTokens(): Promise<ApiEnvelope<TokenSnapshot[]>> {
     chains.map(async (platform) => {
       const seed = tokens.find((t) => t.platform === platform);
       const demo = DEMO_TOKENS[platform];
-      if (!demo) return { platform, live: null as TokenSnapshot | null, seed, proof: [] as ApiProof[] };
-      const env = await loadExitBundle(demo.platform, demo.address);
-      return { platform, live: env.source === "live" ? env.data : null, seed, proof: env.proof };
+      if (!demo) return { platform, live: null as TokenSnapshot | null, seed, proof: [] as ApiProof[], late: false };
+      const load = loadExitBundle(demo.platform, demo.address).catch(() => null);
+      const env = await Promise.race([load, budget(LIST_BUDGET_MS)]);
+      if (env === LATE) {
+        // Fallback branch: over budget, serve the seed snapshot for this chain.
+        return { platform, live: null, seed, proof: [] as ApiProof[], late: true };
+      }
+      if (!env) return { platform, live: null, seed, proof: [] as ApiProof[], late: false };
+      return { platform, live: env.source === "live" ? env.data : null, seed, proof: env.proof, late: false };
     })
   );
 
@@ -140,7 +156,7 @@ async function loadDemoTokens(): Promise<ApiEnvelope<TokenSnapshot[]>> {
     if (r.live) data.push(r.live);
     else if (r.seed) {
       data.push(r.seed);
-      fellBack.push(`${r.seed.symbol} (${r.platform})`);
+      fellBack.push(`${r.seed.symbol} (${r.platform}${r.late ? `, over the ${LIST_BUDGET_MS / 1000} s budget` : ""})`);
     }
   }
   const proof = results.flatMap((r) => r.proof);
@@ -180,6 +196,28 @@ export const realAdapter: ExitAdapter = {
     return loadExitBundle(platform, address);
   },
 };
+
+/**
+ * Server-side lookup for a shared /play link, raced against LIST_BUDGET_MS so
+ * the page never waits on a slow CoinMarketCap answer. Fallback branch: a late
+ * lookup comes back as an `upstream_timeout` envelope; the page then shows the
+ * sample token with an error state whose retry button runs the lookup again
+ * from the browser, by which time the 60 s cache is usually warm.
+ */
+export async function lookupWithinBudget(platform: Platform, address: string): Promise<ApiEnvelope<TokenSnapshot>> {
+  const env = await Promise.race([getAdapter().lookup(platform, address).catch(() => null), budget(LIST_BUDGET_MS)]);
+  if (env === LATE || env === null) {
+    const code = env === LATE ? "upstream_timeout" : "upstream_error";
+    return {
+      source: "none",
+      data: null,
+      proof: [],
+      message: env === LATE ? `CoinMarketCap did not answer within ${LIST_BUDGET_MS / 1000} s.` : "The lookup failed on our server.",
+      error: errorBody(code),
+    };
+  }
+  return env;
+}
 
 export function getAdapter(): ExitAdapter {
   return process.env.ADAPTER_MODE === "real" ? realAdapter : fakeAdapter;

@@ -22,6 +22,16 @@ export const CMC_RETRY_DELAY_MS = 600;
 /** Server cache for CoinMarketCap responses, in seconds. */
 export const CACHE_SECONDS = 60;
 
+/**
+ * Time budget for one demo token in the real-mode sample list. A token whose
+ * five CMC calls have not finished by then is served from its seed snapshot,
+ * so `/` and `/play` never wait on a slow CoinMarketCap answer.
+ */
+export const LIST_BUDGET_MS = 4000;
+
+/** Lifetime of the in-process holders memo (the POST is not in the Next data cache). */
+export const HOLDERS_MEMO_MS = CACHE_SECONDS * 1000;
+
 /** Prefix for every core-path log line. */
 export const LOG_PREFIX = "[core]";
 
