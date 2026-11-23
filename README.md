@@ -2,7 +2,7 @@
 
 **What would selling your small DEX token pay today, and what is left if the biggest wallets sell before you?** Efflux answers both with live CoinMarketCap DEX data, on one screen.
 
-> Live demo: https://efflux.vercel.app
+> Live demo: https://efflux-eight.vercel.app
 
 ## The problem
 
