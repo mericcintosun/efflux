@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/route-states";
 import { SceneSlot } from "@/components/scene-slot";
 import { CMC_ENDPOINTS, getAdapter } from "@/lib/adapter";
 import { DEFAULT_HOLDING_USD, type TokenSnapshot } from "@/lib/data";
@@ -39,6 +40,7 @@ function WorkedExample({ t }: { t: TokenSnapshot }) {
 export default async function NotesPage() {
   const { data } = await getAdapter().listTokens();
   const t = data?.[0];
+  const endpoints: ReadonlyArray<(typeof CMC_ENDPOINTS)[number]> = CMC_ENDPOINTS;
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-14 md:px-8 md:py-20">
@@ -67,16 +69,27 @@ export default async function NotesPage() {
 
       <section className="mt-16 space-y-6">
         <h2 className="text-2xl md:text-3xl">CoinMarketCap endpoints we call</h2>
-        <ul className="max-w-[80ch] divide-y divide-border">
-          {CMC_ENDPOINTS.map((e) => (
-            <li key={e.path} className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">
-              <span className="min-w-[19rem] font-semibold">
-                {e.method} /public-api{e.path}
-              </span>
-              <span className="text-muted-foreground">{e.use}</span>
-            </li>
-          ))}
-        </ul>
+        {endpoints.length === 0 ? (
+          // Empty branch: no endpoint list to show, send the reader to the live tool.
+          <EmptyState
+            className="max-w-3xl"
+            title="The endpoint list is empty in this build."
+            body="The simulator still shows every CoinMarketCap request it makes in its proof drawer."
+            href="/play"
+            cta="Open the simulator"
+          />
+        ) : (
+          <ul className="max-w-[80ch] divide-y divide-border">
+            {endpoints.map((e) => (
+              <li key={e.path} className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">
+                <span className="min-w-[19rem] font-semibold">
+                  {e.method} /public-api{e.path}
+                </span>
+                <span className="text-muted-foreground">{e.use}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="mt-16 grid gap-8 lg:grid-cols-2">

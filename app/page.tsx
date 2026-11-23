@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PoolSceneFrame } from "@/components/pool-scene-frame";
+import { EmptyState } from "@/components/route-states";
 import { SceneSlot } from "@/components/scene-slot";
 import { StoryScroll } from "@/components/story-scroll";
 import { getAdapter } from "@/lib/adapter";
@@ -8,6 +9,10 @@ import { getAdapter } from "@/lib/adapter";
 export const metadata: Metadata = {
   title: "Story: what selling your DEX token actually pays",
 };
+
+// No searchParams here, so the story is an ISR page: the demo token list is
+// rebuilt at most once a minute, matching the 60 s CoinMarketCap cache.
+export const revalidate = 60;
 
 // Home route: L5 bands. Full-width bands alternate ground and surface, each one
 // sentence plus one artifact; the "Your turn" chapter inside StoryScroll is the
@@ -35,14 +40,14 @@ export default async function Home() {
             {story ? (
               <PoolSceneFrame token={story} />
             ) : (
-              <div className="max-w-4xl">
-                <SceneSlot
-                  n={1}
-                  alt="A magenta liquidity pool with a line of ink holder blocks waiting beside it"
-                  width={960}
-                  height={640}
-                />
-              </div>
+              // Empty branch: the adapter returned no token, so there is no pool to draw.
+              <EmptyState
+                className="max-w-4xl"
+                title="No token is loaded yet."
+                body="Neither CoinMarketCap nor the bundled snapshot gave the story a token to sell. The simulator still takes any address."
+                href="/play"
+                cta="Open the simulator"
+              />
             )}
           </div>
         </div>

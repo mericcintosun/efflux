@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExitStage, type ExitControls } from "@/components/exit-stage";
+import { EmptyState } from "@/components/route-states";
 import { DEFAULT_HOLDING_USD, SOURCE_LABEL } from "@/lib/data";
 import type { DataSource, TokenSnapshot } from "@/lib/types";
 import { exitQuote, fmtUsd, type ExitResult } from "@/lib/simulate";
@@ -57,12 +58,14 @@ export function StoryScroll({ tokens, source = "fake" }: { tokens: TokenSnapshot
   const token = tokens[0];
   if (!token) {
     return (
-      <section aria-label="The story of one exit" className="bg-surface">
+      <section aria-label="The story of one exit" className="bg-background">
         <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
-          <h2 className="max-w-[24ch] text-2xl leading-tight md:text-4xl">No sample token is loaded, so the story has nothing to sell yet.</h2>
-          <Button asChild size="lg" className="mt-10">
-            <Link href="/play">Open the simulator</Link>
-          </Button>
+          <EmptyState
+            title="No sample token is loaded, so the story has nothing to sell yet."
+            body="Open the simulator and paste any Base, BNB Chain or Solana token address instead."
+            href="/play"
+            cta="Open the simulator"
+          />
         </div>
       </section>
     );
