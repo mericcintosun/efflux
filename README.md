@@ -1,8 +1,17 @@
 # Efflux
 
-**What would selling your small DEX token pay today, and what is left if the biggest wallets sell before you?** Efflux answers both with live CoinMarketCap DEX data, on one screen.
+**Efflux shows what selling a small DEX token pays today, and what is left after the biggest wallets sell first.** A wallet shows price times balance; Efflux reads the real pools and holders from the CoinMarketCap DEX API so a holder knows how much of that number they can actually take out before pressing sell.
 
-> Live demo: https://efflux-eight.vercel.app
+Live demo: https://efflux-eight.vercel.app (start on `/` and drag "Wallets selling ahead of you" from 0 to the end; this is DEMO.md step 3).
+
+## Try it in 60 seconds
+
+1. Open https://efflux-eight.vercel.app. The 3D pool under the headline is the token's liquidity; the ink blocks are its largest holders, the magenta block is you.
+2. Scroll to "The quote": the panel shows "Wallet shows $5,000" and "A sale pays you".
+3. Keep scrolling to "The queue" and drag "Wallets selling ahead of you" to the end. The payout falls, the pool drains and its sold holder blocks flatten, and the camera drops to look along the holder line.
+4. Press "Simulate your own exit with these controls" to open `/play`, then press **Show the CoinMarketCap calls** to see every request with its response.
+
+Under the panel the source note says which data you are looking at, in the same words the UI uses: "Live from CoinMarketCap", "Seed data, not a live response" or "Bundled snapshot, CoinMarketCap was unavailable for some tokens".
 
 ## The problem
 
@@ -31,7 +40,34 @@ The four losses are computed as successive scenarios, so impact + tax + drain + 
 
 Concentrated liquidity pools (Uniswap v3, Raydium CLMM, Meteora DLMM, Orca) are modeled as constant product too. That understates their depth near the price, so the loss leans high for them, and the UI says so.
 
-## Bounty
+## How the pieces fit
+
+```mermaid
+flowchart LR
+  CMC["CoinMarketCap DEX API<br/>keyless public host"]
+  CMCTS["lib/cmc.ts<br/>loadExitBundle, holdersCall"]
+  PARSE["lib/cmc-parse.ts<br/>field pickers"]
+  ADAPTER["lib/adapter.ts<br/>getAdapter: fake or real"]
+  ROUTE["app/api/exit/route.ts<br/>GET /api/exit"]
+  SIM["lib/simulate.ts<br/>exitQuote, cutsWaterfall"]
+  STAGE["components/exit-stage.tsx<br/>live panel"]
+  POOL["components/pool-scene.tsx<br/>3D pool"]
+  CMC --> CMCTS
+  CMCTS --> PARSE
+  PARSE --> CMCTS
+  CMCTS --> ADAPTER
+  ADAPTER --> ROUTE
+  ADAPTER --> STAGE
+  ROUTE --> STAGE
+  STAGE --> SIM
+  POOL --> SIM
+```
+
+`components/story-scroll.tsx` holds one state object (wallets ahead, sell tax, LP drain) that feeds both the panel and the pool, so the 3D pool on `/` follows the slider and the camera follows the chapter.
+
+## Prizes
+
+There are no sponsor bounties in this hackathon. The three rows are placements in one judged ranking:
 
 | Bounty | Prize | Slots | Required tech | Code file | DEMO step |
 | --- | --- | --- | --- | --- | --- |
@@ -39,9 +75,17 @@ Concentrated liquidity pools (Uniswap v3, Raydium CLMM, Meteora DLMM, Orca) are 
 | Top 10 | Exclusive CMC Plushie (Top 10) | 10 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
 | Top 30 | Exclusive CMC Keyboard (Top 30) | 30 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
 
-The three rows are slices of one judged ranking: a single submission is placed once, and its rank decides which prize it gets.
+A single submission is placed once, and its rank decides which prize it gets.
 
 **How deep the integration goes.** `lib/adapter.ts` imports `loadExitBundle` from `lib/cmc.ts` and is the only data seam for every page and route. Delete `lib/cmc.ts` and, in real mode (`ADAPTER_MODE=real`), DEMO.md steps 2, 3 and 6 break: the pools behind "A sale pays you", the holder queue behind the slider and every entry in the proof drawer come from it. In fake mode the demo still runs on seed tokens, and step 6 labels its drawer entries as seed data rather than live calls.
+
+## Addresses
+
+| What | Address |
+| --- | --- |
+| Live app | https://efflux-eight.vercel.app |
+
+Efflux deploys no contract and holds no funds (see `SECURITY.md`).
 
 ## How it uses the CoinMarketCap API
 
@@ -77,7 +121,7 @@ Every request is recorded with method, URL, body, status, latency and the first 
 `scripts/proof.mjs` makes real keyless calls for the demo tokens and rewrites the two blocks below, plus the timing table under "Measured latency". When CoinMarketCap cannot be reached, it says so in one line instead of showing a response.
 
 <!-- PROOF:BEGIN cmc-call -->
-Captured by `npm run proof` at 2026-11-23T20:30:26.367Z, keyless host, no key header sent. First 600 characters of each response.
+Captured by `npm run proof` at 2026-11-23T20:48:52.724Z, keyless host, no key header sent. First 600 characters of each response.
 
 - Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
 
@@ -101,12 +145,12 @@ Keys seen in the real responses, checked against the candidate keys in `lib/cmc-
 The demo has a 5 second rule per step. `npm run proof` times the five calls the app makes for each demo token and rewrites the table below. In the app itself, the sample list gives each demo token 4 seconds (`LIST_BUDGET_MS` in `lib/config.ts`); a token that misses it is served from its seed snapshot and named in the source note.
 
 <!-- PROOF:BEGIN demo-timing -->
-Measured by `npm run proof` at 2026-11-23T20:30:26.367Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
+Measured by `npm run proof` at 2026-11-23T20:48:52.724Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
 
 | Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |
 | --- | --- | --- | --- | --- |
-| 0x532f...42E4 | base | 204 | 429, 429, 429, 429, 429 | yes |
-| DezXAZ...B263 | solana | 194 | 429, 429, 429, 429, 429 | yes |
+| 0x532f...42E4 | base | 224 | 429, 429, 429, 429, 429 | yes |
+| DezXAZ...B263 | solana | 398 | 429, 429, 429, 429, 429 | yes |
 <!-- PROOF:END demo-timing -->
 
 ### What the API made possible and where it pushed back
@@ -122,26 +166,27 @@ Optional: set `CMC_PRO_API_KEY` in Vercel and the same paths go to the keyed hos
 
 Exactly what `package.json` installs:
 
-- Next.js 15 (App Router), React 19, TypeScript strict, Tailwind CSS v4
-- `three`, `@react-three/fiber`, `@react-three/drei` for the interactive pool on the home page
-- `zod` for input validation on every API route (`lib/schemas.ts`)
-- `vitest` for the tests
+- Next.js 15 (App Router), React 19, TypeScript 5 (strict), Tailwind CSS 4
+- three 0.187 with `@react-three/fiber` 9 and `@react-three/drei` 10 for the interactive pool on the home page
+- Zod 3 for input validation on every API route (`lib/schemas.ts`)
+- Vitest 3 for the tests
 - CoinMarketCap DEX API, keyless public endpoints, through a Route Handler proxy with a 60 s cache, an 8 s timeout and one retry
 - Deployed on Vercel
 
 ## Quickstart
 
 ```bash
+git clone https://github.com/mericcintosun/efflux
+cd efflux
 npm install
 npm run dev
-# open http://localhost:3000
 ```
 
-No environment variables are required. `.env.example` lists every key; `lib/config.ts` is the only file that reads them (plus `ADAPTER_MODE` in `lib/adapter.ts`).
+Then open http://localhost:3000. No environment variables are required. `.env.example` lists every key; `lib/config.ts` is the only file that reads them (plus `ADAPTER_MODE` in `lib/adapter.ts`).
 
 ### Data modes
 
-Pages and API routes read tokens through one adapter (`lib/adapter.ts`). With `ADAPTER_MODE=fake`, the default, they serve the seed tokens in `lib/data/seed.ts` and make no network calls. With `ADAPTER_MODE=real`, the demo tokens (BRETT on Base and BONK on Solana by default, overridable with `EFFLUX_DEMO_*_ADDRESS`) and every pasted address load live from the CoinMarketCap DEX API through `lib/cmc.ts`. A demo token that fails to load falls back to its seed token, and the page says "Bundled snapshot" instead of "Live from CoinMarketCap". `npm run seed` writes the seed tokens to `fixtures/seed.json`, and two runs give the same file.
+Pages and API routes read tokens through one adapter (`lib/adapter.ts`). With `ADAPTER_MODE=fake`, the default, they serve the seed tokens in `lib/data/seed.ts` and make no network calls, and the source note reads "Seed data, not a live response". With `ADAPTER_MODE=real`, the demo tokens (BRETT on Base and BONK on Solana by default, overridable with `EFFLUX_DEMO_*_ADDRESS`) and every pasted address load live from the CoinMarketCap DEX API through `lib/cmc.ts`, and the note reads "Live from CoinMarketCap". A demo token that fails to load falls back to its seed token, and the note reads "Bundled snapshot, CoinMarketCap was unavailable for some tokens". `npm run seed` writes the seed tokens to `fixtures/seed.json`, and two runs give the same file.
 
 ### Reset the demo
 
@@ -164,11 +209,11 @@ The parser fixtures in `fixtures/cmc/` are hand-written to the OpenAPI field nam
 
 Routes:
 
-- `/` the story: four chapters drive one live exit panel, from a clean quote to the whale queue
+- `/` the story: four chapters drive one live component (the 3D pool and the exit panel), from a clean quote to the whale queue
 - `/play` the simulator: sample tokens, paste any address, the hidden cuts as a waterfall, share a link to the result
 - `/notes` method, endpoint list, a real call and the API notes
 
-Security notes are in `SECURITY.md` (no contract, no wallet, no stored data). The submission checklist is `DELIVERY.md`.
+Security notes are in `SECURITY.md` (no contract, no wallet, no stored data). The submission checklist is `DELIVERY.md`; the form fields are in `SUBMISSION.md`.
 
 ## What we would build next
 
@@ -179,8 +224,6 @@ Security notes are in `SECURITY.md` (no contract, no wallet, no stored data). Th
 
 ## AI use
 
-> Adjust this section to each hackathon's disclosure rules.
-
-We used AI coding assistants for scaffolding and boilerplate. Architecture, product decisions, and final code review are our own.
+The hackathon rules say: "open-source dependencies and AI coding assistants are allowed, no declaration required" (Turkish source: açık kaynak bağımlılıklar ve AI kodlama asistanları serbest, beyan etmeye de gerek yok). We say it anyway: an AI coding assistant was used to write and review parts of this code and these docs. Product decisions and the final review are ours.
 
 Efflux shows estimates, not financial advice.
