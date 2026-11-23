@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "seed": "node --experimental-strip-types scripts/seed.mjs",
+    "demo:reset": "node --experimental-strip-types scripts/demo-reset.mjs",
     "test": "vitest run",
     "proof": "node scripts/proof.mjs"
   },
