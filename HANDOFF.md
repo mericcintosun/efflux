@@ -225,6 +225,102 @@ None, no command access.
 
 Run `npm run proof`, correct any picker key the `cmc-fields` block contradicts, then rehearse the queue drag on live BRETT and decide whether the story should open on the Base or the Solana token.
 
+## Phase 3 log (demo path end to end on real data)
+
+### Goal
+
+Every DEMO.md step 1 to 7 survives the real flow: bounded latency, a per-step fallback in code, named loading, error and empty states on `/`, `/play` and `/notes`, a reset that returns the demo to the same start state, and share links that resolve on the server.
+
+### Status
+
+All five slices written by file editing only. Build, tests, proof and the reset cycle are unverified until the runner and a person run them.
+
+- Slice 1: `LIST_BUDGET_MS = 4000` in `lib/config.ts:30`. `loadDemoTokens()` in `lib/adapter.ts` races each token's `loadExitBundle` against it (`Promise.race`, `lib/adapter.ts:143`). A late token serves its seed and is named in the message as "SYMBOL (chain, over the 4 s budget)". `lookupWithinBudget()` (`lib/adapter.ts:207`) gives the server-side share link the same budget. Every GET in `lib/cmc.ts` keeps `next: { revalidate: 60 }`; the holders POST now goes through `holdersCall()` with an in-process `Map` memo (`lib/cmc.ts:149`, 60 s, keyed by platform plus lowercased address, successful answers only, a hit replays the earlier proof entries). `/` has `export const revalidate = 60`; `/play` reads `searchParams` and stays dynamic.
+- Slice 2: `npm run demo:reset` (`scripts/demo-reset.mjs`) removes `.next/cache/fetch-cache` if present and imports `scripts/seed.mjs` to regenerate `fixtures/seed.json`, then prints one line. README "Reset the demo" section.
+- Slice 3: `components/route-states.tsx` exports `HomeSkeleton`, `PlaySkeleton`, `NotesSkeleton`, `ErrorState`, `EmptyState`. The failed-lookup proof gap is fixed: the drawer keeps the previous proof and shows "The last lookup failed, so the calls below are from the result still on screen."
+- Slice 4: `playQuerySchema` (`lib/schemas.ts:39`) parses the `/play` query, never throws. `app/play/page.tsx` resolves `platform` plus `address` on the server and passes `initialLookup` to `PlayDesk`. The arrival `useEffect` fetch is gone. Lookup guarded by `requestIdRef` plus `AbortController`; submit `disabled` and `aria-busy` from `status.kind === "loading"`. `/api/exit` documents the idempotent GET and sends `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` on success.
+- Slice 5: `components/scene-slot.tsx` uses `next/image` (no `unoptimized`: Next serves `.svg` unoptimized by itself when `dangerouslyAllowSVG` is off). `scripts/proof.mjs` writes a `demo-timing` table; README "Measured latency" holds the markers with an honest "Not run" line until the runner runs proof.
+
+### Decisions
+
+**Persistence: none.** First row of the table, "seed constants and in-memory per request". No demo step writes server state; the share link carries every control in the URL (`copyLink` in `components/play-desk.tsx`). No `lib/store.ts`.
+
+Rejected rows:
+- KV: nothing to store; every value is either a URL parameter or a 60 s cached CMC response.
+- Postgres: no relational read anywhere in the demo.
+- On-chain: no contract in this repo and no wallet flow.
+
+The only server memory is the 60 s holders memo in `lib/cmc.ts`, a cache, not a store; a restart or a new serverless instance starts it empty.
+
+Other decisions:
+- No new dependency, env variable, API route or schema change to a route input. `playQuerySchema` is a new page-query schema, not a route schema; `.farm-live.json` and `.env.example` need no change because this phase adds no secret or env key.
+- A failed shared link opens on the sample token with the error state and its retry; the drawer keeps the sample proof and shows the "last lookup failed" note, rather than showing failed CMC calls under a "Live" intro.
+- Out-of-range `ahead` (for example 50) falls back to 0, not a clamp to 10: invalid values take defaults, as the spec asks.
+- Times on `/play` now print in UTC ("Read at 8:11:26 PM UTC") so server and browser render the same text for a server-resolved link.
+
+**Per-step table (real path, fallback in the same file)**
+
+| Step | Real path (file, symbol) | Fallback (file, symbol) |
+| --- | --- | --- |
+| 1 `/` hero and 3D pool | `app/page.tsx` `Home` via `getAdapter().listTokens()` then `lib/adapter.ts` `loadDemoTokens` | `lib/adapter.ts` `loadDemoTokens` late or failed branch serves the seed; `app/page.tsx` `EmptyState` when the list is empty; `components/pool-scene-frame.tsx` error boundary falls back to the SVG |
+| 2 `/` "The quote" | `components/story-scroll.tsx` `StoryChapters` over `loadDemoTokens` live data | same `loadDemoTokens` seed branch inside `LIST_BUDGET_MS`; `components/story-scroll.tsx` `StoryScroll` `EmptyState` |
+| 3 `/` "The queue" (wow) | `exitQuote()` in `lib/simulate.ts` over live holders from `lib/cmc.ts` `holdersCall` | `holdersCall` memo hit, else `loadDemoTokens` seed holders |
+| 4 `/` "Hidden cuts" | `parseSellTaxPct`, `parseLpChangePct` through `lib/cmc.ts` `loadExitBundle` | `loadDemoTokens` seed token's `sellTaxPct` and `lpChange24hPct` |
+| 5 `/play` free tool | `app/play/page.tsx` `PlayPage` via `listTokens`; lookup `components/play-desk.tsx` `loadLive` then `/api/exit` | `loadDemoTokens` seed branch; `components/play-desk.tsx` `ErrorState` with `retryLookup`, `EmptyState` with `focusAddress` |
+| 6 `/play` proof drawer | `components/play-desk.tsx` `ProofDrawer` with `envelope.proof` from `lib/cmc.ts` `cmcCall` | `ProofDrawer` keeps previous proof plus `lastFailed` note; `lib/adapter.ts` `seedProof` in fake mode |
+| 7 share link, then `/notes` | `app/play/page.tsx` `playQuerySchema` then `lib/adapter.ts` `lookupWithinBudget` into `PlayDesk` `initialLookup`; `app/notes/page.tsx` `NotesPage` | `lookupWithinBudget` late branch returns `upstream_timeout`, `PlayDesk` opens in `ErrorState` with retry; `app/notes/page.tsx` `EmptyState` for an empty endpoint list |
+
+**State triad per route**
+
+| Route | Skeleton | ErrorState (retry) | EmptyState (call to action) |
+| --- | --- | --- | --- |
+| `/` | `app/loading.tsx` `HomeSkeleton` | `app/error.tsx` `onRetry={reset}` | `app/page.tsx` and `components/story-scroll.tsx`, "Open the simulator" to `/play` |
+| `/play` | `app/play/loading.tsx` `PlaySkeleton` | `app/play/error.tsx` `onRetry={reset}`; inline `components/play-desk.tsx:283` `onRetry={retryLookup}` | `components/play-desk.tsx:244` and `:350`, "Paste an address" focuses the field |
+| `/notes` | `app/notes/loading.tsx` `NotesSkeleton` | `app/notes/error.tsx` `onRetry={reset}` | `app/notes/page.tsx:74`, "Open the simulator" to `/play` |
+
+### Failed attempts
+
+None.
+
+### Files changed
+
+New: `components/route-states.tsx`, `app/play/error.tsx`, `app/notes/error.tsx`, `scripts/demo-reset.mjs`, `.farm-commits.json`.
+Edited: `lib/config.ts`, `lib/adapter.ts`, `lib/cmc.ts`, `lib/schemas.ts`, `tests/schemas.test.ts`, `app/page.tsx`, `app/loading.tsx`, `app/error.tsx`, `app/play/page.tsx`, `app/play/loading.tsx`, `app/notes/page.tsx`, `app/notes/loading.tsx`, `app/api/exit/route.ts`, `components/play-desk.tsx`, `components/story-scroll.tsx`, `components/scene-slot.tsx`, `scripts/proof.mjs`, `package.json`, `README.md`, `HANDOFF.md`.
+
+### Commands run
+
+None, no command access.
+
+### Unmet or unverified items (evidence)
+
+- User-typed lookups on `/play` are not bounded at 5 s: `/api/exit` (`app/api/exit/route.ts`) calls `getAdapter().lookup` directly, so a cold CMC call can take up to 8 s plus one 600 ms retry plus 8 s (`lib/config.ts` `CMC_TIMEOUT_MS`, `CMC_RETRIES`). Only the sample list and the server-resolved share link are raced against `LIST_BUDGET_MS`. The submit stays disabled and labelled "Reading CoinMarketCap..." meanwhile.
+- A late demo token keeps loading in the background after the budget fires (`lib/adapter.ts:143`); its GETs warm the 60 s fetch cache, but its result is not used for that request.
+- `components/brand-mark.tsx:11` still renders `<img>`: it is the header brand slot, left alone to keep the one-mark rule intact. It is the only `<img` under `app` and `components`.
+- `NEXT_PUBLIC_BRAND_FILES` exists in `lib/brand-files.ts:2` and `next.config.ts:17` from the scaffold. It carries image file names, not a secret, and `lib/brand-*.ts` is on the never-touch list, so it stays.
+- `.next/cache/fetch-cache` is the cache path for `next start`; on Vercel the data cache lives on the platform and `demo:reset` cannot clear it. A redeploy or a 60 s wait does.
+- The holders memo lives per server instance. On Vercel each cold lambda starts empty, so the memo helps repeat requests on a warm instance only.
+- Everything that needs a command: `npm run build`, `npm test` (5 new `playQuerySchema` cases), `npm run proof` (new `demo-timing` block), `npm run demo:reset`.
+
+### Open questions
+
+- Should user lookups through `/api/exit` get the same 4 s budget, returning `upstream_timeout` and letting the retry hit the warm cache? It would make every step meet the 5 s rule, at the cost of more retry clicks on cold tokens.
+- Does the keyless holders POST accept `platform` as `base` and `solana`? Phase 2 proof recorded a 400 for it (README `cmc-call` block).
+
+### Manual checklist (facts only a person can supply)
+
+1. Run `npm run proof`; read `cmc-call`, `cmc-fields` and the new `demo-timing` block. Every demo token should show a total under 5000 ms.
+2. The holders POST returned 400 in the Phase 2 proof: find the body CMC expects and fix `holdersCall` in `lib/cmc.ts` and the matching proof call.
+3. If a picker key is missing in `cmc-fields`, fix the candidate list in `lib/cmc-parse.ts`.
+4. Pick a long-lived BSC token, set `EFFLUX_DEMO_BSC_ADDRESS` in Vercel and `.env.local`, rerun `npm run proof`.
+5. Run `npm test` once and commit `tests/__snapshots__/`.
+6. Swap the seeds in `lib/data/seed.ts` for snapshots built from the captured responses, then `npm run seed`.
+7. On the live URL with `ADAPTER_MODE=real`: run `npm run demo:reset`, `npm run seed`, then walk DEMO.md steps 1 to 7 three times; same numbers each time, no step over 5 s. Open a copied share link in a new tab.
+8. Block or throttle CoinMarketCap once: the "Bundled snapshot" note appears, "Try again" works, the proof drawer keeps the last good entries with the failure note.
+
+### Next best step
+
+Run `npm run proof`, fix the holders POST body (the 400), then decide the open question on bounding `/api/exit`. Phase 4 can then move on to Mission 2 and 3 polish on live data.
+
 ## 5. Definition of done
 
 - Deployed at https://efflux.vercel.app on live keyless CMC data, all three demo tokens loading on the live URL.
