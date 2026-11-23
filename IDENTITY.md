@@ -85,3 +85,6 @@ Rules:
 - every interaction is driven by the real seed data; a decorative animation with no product meaning does not count as a signature
 
 ## Amendments (append-only; later phases add dated lines here, never edit anything above)
+
+- 2026-11-23: phase 5 added scene-5 and scene-6 SVG fallbacks; no identity row changed.
+- 2026-11-23: phase 5 made every 3D pool material an unlit flat IDENTITY color (meshBasicMaterial, no lights) and drew chart series in INK tints instead of WARN and BAD; no identity row changed.

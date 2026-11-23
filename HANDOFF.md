@@ -405,6 +405,110 @@ None, no command access.
 
 Phase 5: kit signatures 2 and 3 (the pool follows the story controls; the chapter-linked camera move) and the frontend pass, starting with the sticky story panel height on phones. Before that, run `npm run proof` and settle the holders body.
 
+## Phase 5 log (frontend pass, kit signatures 2 and 3, submission package)
+
+### Goal
+
+DEMO.md steps 1 to 4 on `/` read like a funded product in the IDENTITY look (D2, S6, L5, M4, K6), the 3D pool follows the sticky story controls (signature 2) and moves its camera between chapters (signature 3), `/play` and `/notes` share the band rhythm, and the submission files exist.
+
+### Status
+
+Written by file editing only. Build, tests, proof and every visual check are unverified until the runner and a person run them. `.farm-delta.md` holds the shot-by-shot diagnosis (13 items), 20 change rows (13 A, 7 B) with Grep proofs, and one Kept row.
+
+- **Home bands** (`app/page.tsx`): 1 story band GROUND (hero copy plus the S6 chapters beside the sticky pool and panel), 2 problem band SURFACE (one sentence computed from the story token through the adapter, scene-2), 3 cuts band GROUND (scene-3), 4 API band DEEP (the `CMC_ENDPOINTS` list as type, link to `/notes`), 5 CTA band GROUND (the one primary button "Open the simulator", scene-6).
+- **Wipe** (`app/globals.css`, `components/wipe-watch.tsx`): `.efflux-wipe-view` no longer uses `animation-timeline: view()` (it held band headings clipped until scrolled, so the BEFORE shots showed empty bands). An IntersectionObserver sets `data-wipe="run"` as an element enters; elements already on screen at load get `data-wipe="seen"` and never replay. Before JS, with JS off, or under reduced motion nothing is hidden.
+- **Story** (`components/story-scroll.tsx`): one `controls` state feeds `ExitStage` and `PoolSceneFrame`. At lg the chapters are the left column and the pool plus panel a sticky right column; on phones both wrappers are `display: contents`, the pool sits in the flow and the panel sticks under the header with `max-h-[55svh]`. Chapter links are one mixed-case row; the active chapter is a flat ACCENT block. The last chapter hands over with a link-style button.
+- **Compact panel** (`components/exit-stage.tsx`): under 640 px it keeps the payout, the loss bar and the slider; the legend and the tax and drain switches fold into `<Fold>` ("Where the gap goes, sell tax and LP drain"). Loss bar series are INK, INK 60%, INK 30%, LINE and ACCENT; WARN and BAD are no longer series colors.
+- **Kit** (`components/pool-scene.tsx`, `components/pool-scene-frame.tsx`): see the interaction table below.
+- **Primitives**: new `components/ui/fold.tsx` (details plus one-line summary). Badge is sentence case. Input has a visible INK focus outline. Header Menu control is the `Button` primitive. No bare `<button>`, `<input>` or `<select>` outside `components/ui/`.
+- **`/play`** (`app/play/page.tsx`, `components/play-desk.tsx`): title band GROUND, pick band SURFACE (with scene-5 in the "no lookup yet" state), result band GROUND, queue band SURFACE. No cards.
+- **`/notes`** (`app/notes/page.tsx`): five bands; the full method, the endpoint list and the limits fold behind one-line disclosures; the code block scrolls in its own box.
+- **Footer** (`app/layout.tsx`): one link row (Simulator, Notes, Source on GitHub, Build with CMC hackathon) plus the Phase 4 "About and security" sentence.
+- **OG image**: wordmark plus the real one-liner on GROUND with INK, DEEP and an ACCENT block; tokens from `lib/brand-colors.ts` (equal to IDENTITY).
+- **Submission**: README rewritten as the submission text (PROOF blocks untouched), `SUBMISSION.md`, `docs/SCREENSHOTS.md`.
+
+### Interaction kit, interaction to file
+
+| Signature | Files | What drives it |
+| --- | --- | --- |
+| 1 orbitable pool on the first screen | `components/pool-scene-frame.tsx`, `components/pool-scene.tsx` | Click the pool or "Let the next wallet sell": next real holder from `lib/data/seed.ts` (through `lib/adapter.ts`) sells; "Refill the pool" wraps to 0 |
+| 2 pool follows product state | `components/story-scroll.tsx` (`controls`, `update`) into `ExitStage` and `PoolSceneFrame` | Liquid height = `receiveUsd / screenUsd` from `exitQuote()`; tax (INK) and drain (DEEP) are separate layers above it; holder blocks flatten for `i < walletsAhead`; the pool button writes the same `controls.ahead` |
+| 3 chapter camera move | `CameraRig` in `components/pool-scene.tsx`, `view` from `components/story-scroll.tsx` | Chapter id `queue` selects the low side view `[-9, 1.9, 2.6]`, every other chapter the front view `[-3.2, 3.6, 7.4]`; damped lerp with `invalidate()`, snap under reduced motion; "Reset view" button returns to the chapter's view |
+
+Canvas: `next/dynamic` with `ssr: false` from the client `pool-scene-frame.tsx`, inside `SceneBoundary` falling back to `scene-1.svg`; `frameloop="demand"`; no lights, every material `meshBasicMaterial` in IDENTITY colors; all text in HTML. Every file importing `three`, `@react-three/fiber` or `@react-three/drei` starts with `"use client"` (`components/pool-scene.tsx`); `story-scroll.tsx` and `pool-scene-frame.tsx` import only types from it.
+
+### Scene slots (all six are SVG fallbacks, `public/brand/` is absent)
+
+| Slot | Shape | Route and file |
+| --- | --- | --- |
+| `n={1}` | 960x640 | `/`, `components/pool-scene-frame.tsx` (WebGL off or loading) |
+| `n={2}` | 960x640 | `/`, `app/page.tsx` problem band |
+| `n={3}` | 960x640 | `/`, `app/page.tsx` cuts band |
+| `n={4}` | 960x640 | `/notes`, `app/notes/page.tsx` limits band |
+| `n={5}` | 640x600, near square (new) | `/play`, `components/play-desk.tsx` "no lookup yet" state |
+| `n={6}` | 1200x480, wide (new) | `/`, `app/page.tsx` CTA band |
+
+No `Marka rerun needed` condition appeared: the header still renders the mark only through `<BrandMark />`.
+
+### Route map
+
+`/` is `app/page.tsx` plus `components/story-scroll.tsx`; `/play` is `app/play/page.tsx` plus `components/play-desk.tsx`; `/notes` is `app/notes/page.tsx`. All three are linked from `components/site-header.tsx` (`NAV`).
+
+### Decisions
+
+- The pool moved from a separate hero block into the story band, because signatures 2 and 3 only read if the pool is on screen while the slider moves and the chapter changes. At lg it is in the sticky column; on phones it stays in the flow above the sticky panel (the phone panel stays under 55 percent of the viewport, so the pool scrolls away while dragging there).
+- Liquid height is the payout share (`receiveUsd / screenUsd`), as the spec says, not the old `quoteLeftFrac`.
+- Illustrations with a white background on SURFACE bands use `mix-blend-multiply`, so they read as part of the band instead of a white card; no SVG under `public/illustrations` was edited except the two new files.
+- `scene-3.svg` keeps its WARN and BAD bars (Kept row in `.farm-delta.md`): the existing illustration files are on the CLAUDE.md never-touch list.
+- The problem band sentence is computed from the story token (`exitQuote`, no tax, nobody ahead) instead of the hand-typed $300,000 example.
+- No new dependency, env variable, route or schema change. `lucide-react` was already installed (used by `fold.tsx`).
+
+### Failed attempts
+
+None.
+
+### Files changed
+
+New: `components/wipe-watch.tsx`, `components/ui/fold.tsx`, `public/illustrations/scene-5.svg`, `public/illustrations/scene-6.svg`, `SUBMISSION.md`, `docs/SCREENSHOTS.md`, `.farm-delta.md`, `.farm-commits.json`.
+Edited: `app/globals.css`, `app/layout.tsx`, `app/page.tsx`, `app/play/page.tsx`, `app/notes/page.tsx`, `app/not-found.tsx`, `app/opengraph-image.tsx`, `components/story-scroll.tsx`, `components/exit-stage.tsx`, `components/pool-scene.tsx`, `components/pool-scene-frame.tsx`, `components/play-desk.tsx`, `components/site-header.tsx`, `components/ui/badge.tsx`, `components/ui/input.tsx`, `README.md`, `HANDOFF.md`, `IDENTITY.md` (Amendments only).
+
+### Commands run
+
+None, no command access.
+
+### Unmet or unverified items (evidence)
+
+- Everything that needs a command: `npm run build`, `npm test`, `npm run proof`, Lighthouse, the 360, 768 and 1280 px checks. In particular the R3F typing of `useThree((s) => s.controls)` and the spread `camera.lookAt(...TARGET)` in `components/pool-scene.tsx` are written to the documented API but not compiled.
+- The camera rig and OrbitControls both write the camera while the rig eases (`components/pool-scene.tsx`, `CameraRig`); a visible fight with damping is possible and only a live look can tell.
+- `/play` and `/notes` had no BEFORE shots, so their changes are not tied to a Diagnosis item.
+- The sticky right column at lg holds the pool (2:1) and the compact panel; on a 1280x720 window it may need its own scroll (`lg:max-h-[calc(100svh-6rem)] lg:overflow-y-auto` in `components/story-scroll.tsx`).
+- On phones the pool is not on screen while the slider is dragged; the wow drag reads best on desktop.
+- The "$3,870 toward a few hundred dollars" line in DEMO.md was not recomputed; `SUBMISSION.md` says "from thousands of dollars to a few hundred" instead.
+- No LICENSE file exists in the repo (Glob `LICENSE*` returns nothing), so README names no license.
+- DoraHacks field character limits are unknown from the repo.
+- Holders POST 400 is still parked (Phase 6 or 7).
+
+### Open questions
+
+- Which host is the production alias, `efflux-eight.vercel.app` (README, `metadataBase`, `SUBMISSION.md`) or `efflux.vercel.app` (Definition of done below)? This phase follows the README host.
+- The track name "Markets and Trading Tools" is not verified byte-exact against the form (kept as in DELIVERY.md).
+- Add a LICENSE file (which license)?
+
+### Next best step
+
+Phase 6 starts from the judge findings and the `npm run proof` output: compare the redeployed site against the BEFORE shots defect by defect, then settle the holders POST body.
+
+### Manual submit checklist
+
+1. Team member names in the DoraHacks form.
+2. Age and eligibility confirmation in the form.
+3. Confirm the exact track name on the form ("Markets and Trading Tools").
+4. Record the demo video and paste its link in the form.
+5. Post on X with #BuildwithCMC linking the BUIDL page and the demo video; paste the post URL in the form.
+6. Run `npm run proof` and commit the rewritten README blocks; run `npm test` once and commit `tests/__snapshots__/`.
+7. Walk DEMO.md steps 1 to 8 on the live URL in a private window, once at phone width.
+8. Paste the fields from `SUBMISSION.md` and work through `DELIVERY.md`.
+
 ## 5. Definition of done
 
 - Deployed at https://efflux.vercel.app on live keyless CMC data, all three demo tokens loading on the live URL.
