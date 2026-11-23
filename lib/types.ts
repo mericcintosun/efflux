@@ -3,6 +3,8 @@
 // Plain types only (no enums, no runtime code), so lib/data/seed.ts can import
 // them under `node --experimental-strip-types`.
 
+import type { ErrorBody } from "./errors";
+
 export type Platform = "base" | "bsc" | "solana";
 
 /** v2 / cpmm are true constant product; v3 / clmm are concentrated liquidity. */
@@ -71,12 +73,14 @@ export interface ApiProof {
  */
 export type DataSource = "fake" | "live" | "snapshot" | "none";
 
-/** The one response shape every route handler returns. */
+/** The one response shape every route handler returns on success. */
 export interface ApiEnvelope<T> {
   source: DataSource;
   data: T | null;
   proof: ApiProof[];
   message: string;
+  /** Set when data is null (or a fallback was served): a typed code, never provider text. */
+  error?: ErrorBody;
 }
 
 /** What /api/exit returns for one token. */
