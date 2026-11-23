@@ -6,7 +6,7 @@
 // - Optional: when CMC_PRO_API_KEY is set, the same paths go to the keyed
 //   https://pro-api.coinmarketcap.com host with the X-CMC_PRO_API_KEY header.
 // When CoinMarketCap returns nothing usable, loadExitBundle falls back to the
-// bundled snapshot for that address (lib/data.ts) and says so in `message`.
+// bundled snapshot for that address (lib/data/seed.ts) and says so in `message`.
 //
 // Every call is recorded as an ApiProof (method, URL, body, status, timing and the
 // first part of the raw response) so the UI can show judges a real request and
@@ -16,30 +16,15 @@
 // tighten the pickers below. The OpenAPI schema documents pools (liqUsd, t0, t1)
 // and holders (balance, actualBalance, percent, tags) but not every field.
 
-import { findTokenByAddress, type Holder, type HolderTag, type Platform, type Pool, type PoolKind, type TokenSnapshot } from "@/lib/data";
+import { findTokenByAddress } from "@/lib/data/seed";
+import type { ApiEnvelope, ApiProof, Holder, HolderTag, Platform, Pool, PoolKind, TokenSnapshot } from "@/lib/types";
+
+// Re-exported so existing imports from "@/lib/cmc" keep compiling.
+export type { ApiProof, ExitBundle } from "@/lib/types";
 
 const KEYLESS_BASE = "https://pro-api.coinmarketcap.com/public-api";
 const KEYED_BASE = "https://pro-api.coinmarketcap.com";
 const MAX_RETRIES = 3;
-
-export interface ApiProof {
-  endpoint: string;
-  method: "GET" | "POST";
-  url: string;
-  body?: Record<string, string>;
-  status: number;
-  ms: number;
-  at: string;
-  keyed: boolean;
-  excerpt: string;
-}
-
-export interface ExitBundle {
-  source: "live" | "snapshot" | "none";
-  token: TokenSnapshot | null;
-  proof: ApiProof[];
-  message: string;
-}
 
 /** The endpoints Efflux calls, listed for the README, /notes and the proof drawer. */
 export const CMC_ENDPOINTS = [
@@ -246,7 +231,7 @@ function parseLpChangePct(raw: unknown): number {
  * Load everything the simulation needs for one token: five CMC DEX calls.
  * Falls back to the bundled snapshot (same address) when the live data is unusable.
  */
-export async function loadExitBundle(platform: Platform, address: string): Promise<ExitBundle> {
+export async function loadExitBundle(platform: Platform, address: string): Promise<ApiEnvelope<TokenSnapshot>> {
   const proof: ApiProof[] = [];
   const query = { platform: PLATFORM_PARAM[platform], address };
 
@@ -267,7 +252,7 @@ export async function loadExitBundle(platform: Platform, address: string): Promi
     const symbol = str(info, ["sym", "symbol"]) ?? "TOKEN";
     return {
       source: "live",
-      token: {
+      data: {
         slug: `${platform}-${address.slice(0, 10).toLowerCase()}`,
         symbol,
         name: str(info, ["n", "name"]) ?? symbol,
@@ -292,14 +277,14 @@ export async function loadExitBundle(platform: Platform, address: string): Promi
   if (snapshot) {
     return {
       source: "snapshot",
-      token: snapshot,
+      data: snapshot,
       proof,
       message: "CoinMarketCap did not return usable pools for this address, so this is the bundled snapshot.",
     };
   }
   return {
     source: "none",
-    token: null,
+    data: null,
     proof,
     message: "CoinMarketCap returned no price or pools for this address on this chain. Check the chain and the address.",
   };
