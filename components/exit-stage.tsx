@@ -3,6 +3,7 @@
 import { useId, useMemo } from "react";
 import { CutsWaterfall } from "@/components/cuts-waterfall";
 import { Button } from "@/components/ui/button";
+import { Fold } from "@/components/ui/fold";
 import { Slider } from "@/components/ui/slider";
 import type { TokenSnapshot } from "@/lib/types";
 import { exitQuote, fmtPct, fmtUsd, type ExitResult } from "@/lib/simulate";
@@ -56,30 +57,55 @@ export function ExitStage({
   const maxAhead = q.sellers.length;
   const lp = token.lpChange24hPct;
 
+  const switches = (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        size="sm"
+        className="min-h-11 whitespace-normal text-left"
+        variant={applyTax ? "default" : "outline"}
+        aria-pressed={applyTax}
+        disabled={token.sellTaxPct <= 0}
+        onClick={() => onChange({ applyTax: !applyTax })}
+      >
+        {token.sellTaxPct > 0 ? `Sell tax ${token.sellTaxPct}%` : "No sell tax"}
+      </Button>
+      <Button
+        size="sm"
+        className="min-h-11 whitespace-normal text-left"
+        variant={applyDrain ? "default" : "outline"}
+        aria-pressed={applyDrain}
+        disabled={lp >= 0}
+        onClick={() => onChange({ applyDrain: !applyDrain })}
+      >
+        {lp < 0 ? `Assume tomorrow repeats the last 24 hours (LP moved ${lp}%)` : "LP did not shrink in 24 hours"}
+      </Button>
+    </div>
+  );
+
   return (
-    <div className={cn("space-y-5", className)}>
-      <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+    <div className={cn(compact ? "space-y-3 sm:space-y-5" : "space-y-5", className)}>
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-2 sm:gap-x-8 sm:gap-y-3">
         <div>
-          <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">Wallet shows</p>
-          <p className="font-display text-2xl tabular-nums md:text-3xl">{fmtUsd(q.screenUsd)}</p>
+          <p className="text-xs font-semibold text-muted-foreground">Wallet shows</p>
+          <p className="font-display text-xl tabular-nums sm:text-2xl md:text-3xl">{fmtUsd(q.screenUsd)}</p>
         </div>
         <div className="bg-primary px-4 py-2 text-primary-foreground">
-          <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em]">A sale pays you</p>
+          <p className="text-xs font-semibold">A sale pays you</p>
           <p
             key={Math.round(q.receiveUsd)}
             aria-live="polite"
-            className={cn("efflux-wipe font-display tabular-nums", compact ? "text-3xl md:text-5xl" : "text-4xl md:text-6xl")}
+            className={cn("efflux-wipe font-display tabular-nums", compact ? "text-2xl sm:text-3xl md:text-5xl" : "text-4xl md:text-6xl")}
           >
             {fmtUsd(q.receiveUsd)}
           </p>
         </div>
-        <p className="max-w-[28ch] pb-1 text-sm">
+        <p className={cn("max-w-[28ch] pb-1 text-sm", compact && "hidden sm:block")}>
           <span className="font-bold">{fmtPct(q.lossPct)}</span> of the {token.symbol} on screen never reaches you.
         </p>
       </div>
 
       <div className={cn("overflow-x-auto", compact && "hidden md:block")}>
-        <ExitCurve q={q} />
+        <ExitCurve q={q} compact={compact} />
       </div>
 
       {compact ? (
@@ -88,7 +114,7 @@ export function ExitStage({
         <CutsWaterfall q={q} token={token} applyTax={applyTax} applyDrain={applyDrain} onEmptyAction={onEmptyAction} onRetry={onRetry} />
       )}
 
-      <div className="space-y-3">
+      <div className={compact ? "space-y-2 sm:space-y-3" : "space-y-3"}>
         <label htmlFor={sliderId} className="flex items-baseline justify-between gap-4 text-sm font-semibold">
           <span>Wallets selling ahead of you</span>
           <span className="font-display tabular-nums">
@@ -111,28 +137,20 @@ export function ExitStage({
             locker. The slider moves once a token with sellable holders is loaded.
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            className="min-h-11 whitespace-normal text-left"
-            variant={applyTax ? "default" : "outline"}
-            aria-pressed={applyTax}
-            disabled={token.sellTaxPct <= 0}
-            onClick={() => onChange({ applyTax: !applyTax })}
-          >
-            {token.sellTaxPct > 0 ? `Sell tax ${token.sellTaxPct}%` : "No sell tax"}
-          </Button>
-          <Button
-            size="sm"
-            className="min-h-11 whitespace-normal text-left"
-            variant={applyDrain ? "default" : "outline"}
-            aria-pressed={applyDrain}
-            disabled={lp >= 0}
-            onClick={() => onChange({ applyDrain: !applyDrain })}
-          >
-            {lp < 0 ? `Assume tomorrow repeats the last 24 hours (LP moved ${lp}%)` : "LP did not shrink in 24 hours"}
-          </Button>
-        </div>
+        {compact ? (
+          <>
+            {/* Under 640 px the legend and the two switches fold away so the panel stays short. */}
+            <Fold className="sm:hidden" summary="Where the gap goes, sell tax and LP drain">
+              <div className="space-y-3">
+                <LossLegend q={q} token={token} ahead={ahead} />
+                {switches}
+              </div>
+            </Fold>
+            <div className="hidden sm:block">{switches}</div>
+          </>
+        ) : (
+          switches
+        )}
         {!compact && q.conservative ? (
           <p className="max-w-[70ch] text-xs text-muted-foreground">
             Some of these pools are concentrated liquidity. Efflux models them as constant product, so the loss shown leans
@@ -144,7 +162,7 @@ export function ExitStage({
   );
 }
 
-function ExitCurve({ q }: { q: ExitResult }) {
+function ExitCurve({ q, compact }: { q: ExitResult; compact?: boolean }) {
   const W = 640;
   const H = 150;
   const pad = 10;
@@ -160,7 +178,7 @@ function ExitCurve({ q }: { q: ExitResult }) {
     <figure>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="h-28 w-full md:h-36"
+        className={cn("w-full", compact ? "h-20 lg:h-24" : "h-28 md:h-36")}
         role="img"
         aria-label={`What a sale pays as 0 to ${q.curve.length - 1} large wallets sell first, from ${fmtUsd(q.curve[0]?.receiveUsd ?? 0)} down to ${fmtUsd(q.curve[q.curve.length - 1]?.receiveUsd ?? 0)}`}
         preserveAspectRatio="none"
@@ -179,24 +197,41 @@ function ExitCurve({ q }: { q: ExitResult }) {
   );
 }
 
-function LossBar({ q, token, ahead }: { q: ExitResult; token: TokenSnapshot; ahead: number }) {
-  const parts = [
+// Series colors come from INK, its tints, LINE and ACCENT only. OK, WARN and BAD
+// are kept for state (a failed call, a live source), never for a chart series.
+function lossParts(q: ExitResult, token: TokenSnapshot, ahead: number) {
+  return [
     { key: "receive", label: "You receive", usd: q.receiveUsd, swatch: "bg-primary" },
     { key: "impact", label: "Price impact", usd: q.breakdown.impactUsd, swatch: "bg-foreground" },
-    { key: "tax", label: `Sell tax ${token.sellTaxPct}%`, usd: q.breakdown.taxUsd, swatch: "bg-warn" },
-    { key: "drain", label: "LP drain", usd: q.breakdown.drainUsd, swatch: "bg-bad" },
+    { key: "tax", label: `Sell tax ${token.sellTaxPct}%`, usd: q.breakdown.taxUsd, swatch: "bg-foreground/60" },
+    { key: "drain", label: "LP drain", usd: q.breakdown.drainUsd, swatch: "bg-foreground/30" },
     { key: "queue", label: `${ahead} wallets first`, usd: q.breakdown.queueUsd, swatch: "bg-line" },
   ].filter((p) => p.usd >= 0.5);
+}
+
+function LossBar({ q, token, ahead }: { q: ExitResult; token: TokenSnapshot; ahead: number }) {
+  const parts = lossParts(q, token, ahead);
   const total = Math.max(q.screenUsd, 1);
 
   return (
     <div>
-      <div className="flex h-5 w-full overflow-hidden bg-surface" aria-hidden="true">
+      <div className="flex h-4 w-full overflow-hidden bg-surface sm:h-5" aria-hidden="true">
         {parts.map((p) => (
           <div key={p.key} className={cn("h-full transition-[width] duration-500", p.swatch)} style={{ width: `${(p.usd / total) * 100}%` }} />
         ))}
       </div>
-      <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+      <div className="mt-2 hidden sm:block">
+        <LossLegend q={q} token={token} ahead={ahead} />
+      </div>
+    </div>
+  );
+}
+
+function LossLegend({ q, token, ahead }: { q: ExitResult; token: TokenSnapshot; ahead: number }) {
+  const parts = lossParts(q, token, ahead);
+  return (
+    <div>
+      <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
         {parts.map((p) => (
           <li key={p.key} className="flex items-center gap-1.5">
             <span className={cn("inline-block size-2.5", p.swatch)} />

@@ -4,8 +4,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { EmptyState, ErrorState } from "@/components/route-states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SceneSlot } from "@/components/scene-slot";
 import { ExitStage, type ExitControls } from "@/components/exit-stage";
 import { PLATFORM_LABEL, SOURCE_LABEL } from "@/lib/data";
 import { isErrorBody, type ErrorCode } from "@/lib/errors";
@@ -26,6 +26,9 @@ export interface PlayInitial {
 type Status = { kind: "idle" } | { kind: "loading" } | { kind: "error"; message: string };
 
 const PLATFORMS: Platform[] = ["base", "bsc", "solana"];
+
+/** One full-width band's inner column: the same width and padding as the home route bands. */
+const BAND = "mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24";
 
 type SourceState = { kind: DataSource; note: string; sample: boolean };
 
@@ -224,13 +227,12 @@ export function PlayDesk({
   };
 
   return (
-    <div className="space-y-12">
-      <Card>
-        <CardHeader>
-          <CardTitle>Pick a token</CardTitle>
-          <CardDescription>Start from a sample, or paste a contract address and read it from CoinMarketCap.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+    <>
+      <section className="bg-surface" aria-label="Pick a token">
+        <div className={BAND}>
+          <h2 className="text-2xl md:text-4xl">Pick a token</h2>
+          <p className="mt-3 max-w-[60ch] text-base">Start from a sample, or paste a contract address and read it from CoinMarketCap.</p>
+          <div className="mt-8 space-y-6">
           {samples.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {samples.map((t) => (
@@ -295,18 +297,26 @@ export function PlayDesk({
             // ErrorState: the lookup failed; "Try again" reruns loadLive with the same chain and address.
             <ErrorState className="bg-background" title="That lookup did not work" body={status.message} onRetry={retryLookup} />
           ) : !lookedUp ? (
-            <p className="border-l-4 border-line bg-background px-4 py-3 text-sm">
-              No address looked up yet. Paste a contract address on {PLATFORM_LABEL[platform]} to see its pools, holders and the CoinMarketCap
-              calls behind them.
-            </p>
+            // Empty state of the lookup: nothing pasted yet. scene-5 is the artifact of this band.
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="w-36 shrink-0 sm:w-44">
+                <SceneSlot n={5} alt="A magenta token block on a grey line, pointing at an empty ink pool outline with three faint level marks" width={640} height={600} className="mix-blend-multiply" />
+              </div>
+              <p className="max-w-[50ch] text-sm">
+                No address looked up yet. Paste a contract address on {PLATFORM_LABEL[platform]} to see its pools, holders and the
+                CoinMarketCap calls behind them.
+              </p>
+            </div>
           ) : null}
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </section>
 
       {token ? (
-        <section aria-label="Exit result" className="space-y-6">
+        <section aria-label="Exit result" className="bg-background">
+          <div className={cn(BAND, "space-y-6")}>
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="min-w-0 break-words text-2xl md:text-3xl">
+            <h2 className="min-w-0 break-words text-2xl md:text-4xl">
               {token.name} ({token.symbol})
             </h2>
             <Badge variant={isLive ? "ok" : "secondary"}>{SOURCE_LABEL[source.kind]}</Badge>
@@ -364,28 +374,30 @@ export function PlayDesk({
           <div id="proof-drawer" className="max-w-full">
             {proofOpen ? <ProofDrawer proof={proof} source={source.kind} lastFailed={lookupFailed} /> : null}
           </div>
+          </div>
         </section>
       ) : (
-        <section aria-label="Exit result">
-          <EmptyState
-            title="Nothing to simulate yet"
-            body="Paste a token address above and Efflux works out what a sale of it pays."
-            cta="Paste an address"
-            onAction={focusAddress}
-          />
+        <section aria-label="Exit result" className="bg-background">
+          <div className={BAND}>
+            <EmptyState
+              title="Nothing to simulate yet"
+              body="Paste a token address above and Efflux works out what a sale of it pays."
+              cta="Paste an address"
+              onAction={focusAddress}
+            />
+          </div>
         </section>
       )}
 
       {token ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>The queue ahead of you</CardTitle>
-            <CardDescription>
-              Largest holders first. Pools, burn addresses, exchanges, bridges and lockers never sell, so they sit out. Click a wallet to
-              take it out of the queue if you know it will hold.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <section className="bg-surface" aria-label="The queue ahead of you">
+          <div className={BAND}>
+            <h2 className="text-2xl md:text-4xl">The queue ahead of you</h2>
+            <p className="mt-3 max-w-[65ch] text-base">
+              Largest holders first; pools, burn, exchange, bridge and locker wallets sit out, and &quot;Will not sell&quot; takes a wallet
+              you trust out of the queue.
+            </p>
+            <div className="mt-8">
             {token.holders.length === 0 ? (
               <p className="bg-background px-4 py-6 text-sm">No holder list came back for this token, so nobody sells ahead of you.</p>
             ) : (
@@ -429,10 +441,11 @@ export function PlayDesk({
                 </ol>
               </div>
             )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </section>
       ) : null}
-    </div>
+    </>
   );
 }
 

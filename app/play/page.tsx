@@ -15,11 +15,13 @@ function one(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-// The free-form tool without the narrative. Every control is mirrored in the
-// URL by "Copy a link to this result", so a shared link reopens the same exit.
-// This page reads searchParams, so it stays dynamic and relies on the 60 s
-// fetch cache in lib/cmc.ts. A shared link with platform and address resolves
-// here on the server (initialLookup), never through a client effect.
+// The free-form tool without the narrative, in the same band rhythm as the home
+// route: a GROUND title band, then the desk's own bands (pick on SURFACE, result
+// on GROUND, queue on SURFACE). Every control is mirrored in the URL by "Copy a
+// link to this result", so a shared link reopens the same exit. This page reads
+// searchParams, so it stays dynamic and relies on the 60 s fetch cache in
+// lib/cmc.ts. A shared link with platform and address resolves here on the
+// server (initialLookup), never through a client effect.
 export default async function PlayPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const parsed = playQuerySchema.safeParse({
@@ -51,15 +53,16 @@ export default async function PlayPage({ searchParams }: { searchParams: SearchP
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-14 md:px-8 md:py-20">
-      <h1 className="efflux-wipe max-w-[20ch] text-3xl leading-tight md:text-5xl">How much of it can you actually take out?</h1>
-      <p className="mt-5 max-w-[65ch] text-lg">
-        Enter what your wallet shows, then move the queue. Efflux sells the largest real holders into the token&apos;s pools first,
-        then sells yours, and tells you what arrives.
-      </p>
-      <div className="mt-12">
-        <PlayDesk initial={initial} samples={samples} samplesSource={list.source} samplesProof={list.proof} initialLookup={initialLookup} />
-      </div>
-    </div>
+    <>
+      <section className="bg-background">
+        <div className="mx-auto max-w-6xl px-5 pb-14 pt-14 md:px-8 md:pb-20 md:pt-20">
+          <h1 className="efflux-wipe max-w-[18ch] text-4xl leading-[1.04] sm:text-5xl lg:text-6xl">How much of it can you actually take out?</h1>
+          <p className="mt-6 max-w-[60ch] text-lg">
+            Enter what your wallet shows and move the queue: Efflux sells the largest real holders into the pools first, then yours.
+          </p>
+        </div>
+      </section>
+      <PlayDesk initial={initial} samples={samples} samplesSource={list.source} samplesProof={list.proof} initialLookup={initialLookup} />
+    </>
   );
 }

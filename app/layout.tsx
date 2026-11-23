@@ -2,7 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Manrope, Unbounded } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
+import { WipeWatch } from "@/components/wipe-watch";
 import "./globals.css";
+
+const FOOTER_LINK =
+  "inline-flex min-h-11 items-center underline-offset-4 hover:underline hover:decoration-primary hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
+
+const FOOTER_LINKS = [
+  { href: "/play", label: "Simulator", external: false },
+  { href: "/notes", label: "Notes", external: false },
+  { href: "https://github.com/mericcintosun/efflux", label: "Source on GitHub", external: true },
+  { href: "https://dorahacks.io/hackathon/coinmarketcap-api-202611", label: "Build with CMC hackathon", external: true },
+];
 
 const unbounded = Unbounded({ subsets: ["latin"], display: "swap", variable: "--font-unbounded" });
 const manrope = Manrope({ subsets: ["latin"], display: "swap", variable: "--font-manrope" });
@@ -44,36 +55,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         <SiteHeader />
         <main>{children}</main>
-        <footer className="border-t border-border bg-background">
-          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-10 text-sm md:px-8">
-            <p className="max-w-[65ch]">
-              Efflux runs on the CoinMarketCap DEX API through its keyless public endpoints. Built for the Build with CMC API
-              hackathon. Estimates, not advice.
-            </p>
-            <p className="flex flex-wrap gap-x-4 font-semibold">
-              <Link href="/" className="inline-flex min-h-11 items-center underline decoration-primary decoration-2 underline-offset-4">
-                Story
-              </Link>
-              <Link href="/play" className="inline-flex min-h-11 items-center underline decoration-primary decoration-2 underline-offset-4">
-                Simulator
-              </Link>
-              <Link href="/notes" className="inline-flex min-h-11 items-center underline decoration-primary decoration-2 underline-offset-4">
-                Method and endpoints
-              </Link>
-            </p>
-            <p className="max-w-[65ch]">
-              <span className="font-semibold">About and security:</span> Efflux reads public CoinMarketCap data and never asks for a
-              wallet.{" "}
-              <a
-                href="https://github.com/mericcintosun/efflux"
-                rel="noopener noreferrer"
-                className="font-semibold underline decoration-primary decoration-2 underline-offset-4"
-              >
-                Source and SECURITY.md on GitHub
-              </a>
+        <footer className="bg-surface">
+          <div className="mx-auto max-w-6xl px-5 py-12 text-sm md:px-8 md:py-16">
+            <ul className="flex flex-wrap gap-x-6 font-semibold">
+              {FOOTER_LINKS.map((l) => (
+                <li key={l.href}>
+                  {l.external ? (
+                    <a href={l.href} rel="noopener noreferrer" className={FOOTER_LINK}>
+                      {l.label}
+                    </a>
+                  ) : (
+                    <Link href={l.href} className={FOOTER_LINK}>
+                      {l.label}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 max-w-[65ch]">
+              <span className="font-semibold">About and security:</span> Efflux reads public CoinMarketCap data, never asks for a
+              wallet, and shows estimates, not advice (see SECURITY.md in the repo).
             </p>
           </div>
         </footer>
+        <WipeWatch />
       </body>
     </html>
   );

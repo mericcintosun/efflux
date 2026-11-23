@@ -136,19 +136,21 @@
   animation-delay: 240ms;
 }
 
-/* Bands further down wipe in as they enter the viewport, on browsers with
-   scroll-driven animations. Elsewhere they are simply visible. */
-@supports (animation-timeline: view()) {
-  .efflux-wipe-view {
-    animation: efflux-wipe 600ms cubic-bezier(0.65, 0, 0.35, 1) both;
-    animation-timeline: view();
-    animation-range: entry 5% entry 70%;
-  }
+/* Bands further down wipe in as they enter the viewport. components/wipe-watch.tsx
+   sets data-wipe="run" the moment an element crosses into view. Until then the
+   element carries no animation and is fully visible, so server HTML, no-JS
+   readers and full-page captures always see it. */
+.efflux-wipe-view[data-wipe="run"] {
+  animation: efflux-wipe 600ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+.efflux-wipe-group > .efflux-wipe-view[data-wipe="run"]:nth-child(2) {
+  animation-delay: 120ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .efflux-wipe,
-  .efflux-wipe-view {
+  .efflux-wipe-view,
+  .efflux-wipe-view[data-wipe="run"] {
     animation: none !important;
     clip-path: none !important;
   }

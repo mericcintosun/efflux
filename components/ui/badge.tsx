@@ -2,9 +2,9 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-// Solid flat tags with sharp corners. Semantic variants mark state only.
+// Solid flat tags with sharp corners, sentence case. Semantic variants mark state only.
 const badgeVariants = cva(
-  "inline-flex items-center rounded-xs px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-[0.12em]",
+  "inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold leading-snug",
   {
     variants: {
       variant: {
