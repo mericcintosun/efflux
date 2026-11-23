@@ -7,6 +7,8 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 .farm-scaffold.json
+.farm-delta.md
+public/__farm.txt
 
 # farm: sır dosyaları (otomatik eklendi)
 *.pem
