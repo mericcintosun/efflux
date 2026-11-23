@@ -103,6 +103,60 @@ Demo flow to rehearse (90 s): wallet shows $5,000 (0-15 s), pools load and "a sa
 - Scope: if something threatens the December 9 deadline, cut it (signature 3 and search go first). A working live link beats polish; "Does it work" is 30 points.
 - Run `npm run build` after every change and keep it passing.
 
+## Phase 1 log (walking skeleton, adapter seam, demo contract)
+
+### Goal
+
+Every step of the 90-second demo (DEMO.md) runs on seeded data through one adapter seam, with `ADAPTER_MODE` defaulting to `fake`. Pages never import seed arrays directly.
+
+### Status
+
+Done by file reading only; build, seed and deploy are unverified until the runner runs them.
+
+- Typed core: `lib/types.ts` (domain types, `ApiProof`, `DataSource`, `ApiEnvelope<T>`, `ExitBundle` alias). Seed: `lib/data/seed.ts` (fixed ids and timestamps, only a type import). `lib/data.ts` is a two-line compat barrel.
+- Seed script: `scripts/seed.mjs`, `package.json` `seed` = `node --experimental-strip-types scripts/seed.mjs`. `fixtures/seed.json` is a placeholder until the runner runs `npm run seed`.
+- Adapter: `lib/adapter.ts` exports `ExitAdapter`, `fakeAdapter`, `realAdapter`, `getAdapter`, `seedProof`. Fake proof entries are prefixed `Seed data, not a live response.` and the drawer shows a "Seed" tag instead of a status code for them.
+- `lib/cmc.ts` `loadExitBundle` returns `ApiEnvelope<TokenSnapshot>` (`data` replaces `token`); fallback and proof recording unchanged.
+- Routes: `/api/exit` (200 / 404 / 400, envelope bodies) and new `/api/tokens`, both via `getAdapter()`.
+- Pages `/`, `/play`, `/notes` are server components that call `getAdapter().listTokens()` and pass tokens as props. `components/play-desk.tsx` reads `envelope.data` and `envelope.source`; green "Live" badge only for `live`, otherwise a "Seed data" badge in DEEP/INK.
+- Loading skeletons in `app/loading.tsx`, `app/play/loading.tsx`, `app/notes/loading.tsx`. Empty states in play-desk (no lookup yet, null result, zero holders, no liquidity, no samples) and story-scroll (no tokens).
+- Header is a client component with `usePathname()` and `aria-current="page"`. Metadata titles: `Story: ...`, `Simulator`, `Notes`.
+- `lib/brand-colors.ts` feeds `app/opengraph-image.tsx`; no hex remains in `app/` or `components/` code. `app/globals.css` gained a type scale and band spacing tokens.
+- DEMO.md, CLAUDE.md, README "Data modes" paragraph.
+
+### Decisions
+
+- The IDENTITY hexes stay in `:root` of `app/globals.css` and reach Tailwind through `@theme inline`, because the 3D pool reads the raw `--magenta`, `--ink` etc. at runtime. Moving them into `@theme` literal values would risk the scene.
+- `realAdapter.listTokens` and `getToken` return the seed list with `source: "snapshot"` (Phase 2 swaps in real snapshots). In fake mode `/api/exit` resolves only the three seed addresses and only on their own chain; any other address returns 404 with a message that says to set `ADAPTER_MODE=real`.
+- The home page passes the whole list to `StoryScroll` (`tokens` prop), which renders an empty state when the list is empty.
+- `/` metadata title is `Story: what selling your DEX token actually pays` (rendered as `... | Efflux`).
+- DEMO step order follows the spec (queue before hidden cuts). On the page "Hidden cuts" sits before "The queue"; the presenter jumps with the chapter indicator.
+- `app/icon.svg` contains hex fills; it is an SVG asset on the never-touch list, so it stays.
+- `app/opengraph-image.tsx` keeps inline pixel sizes: it renders a 1200x630 image, not a responsive container.
+
+### Failed attempts
+
+None.
+
+### Files changed
+
+`lib/types.ts` (new), `lib/data/seed.ts` (new), `lib/data.ts`, `scripts/seed.mjs` (new), `fixtures/seed.json` (new, placeholder), `package.json`, `lib/adapter.ts` (new), `lib/cmc.ts`, `lib/simulate.ts` (type import only), `.env.example`, `app/api/exit/route.ts`, `app/api/tokens/route.ts` (new), `app/page.tsx`, `app/play/page.tsx`, `app/notes/page.tsx`, `components/play-desk.tsx`, `components/story-scroll.tsx`, `components/exit-stage.tsx` (type import, overflow wrapper on the curve), `components/pool-scene-frame.tsx` (type import only), `components/site-header.tsx`, `app/loading.tsx`, `app/play/loading.tsx`, `app/notes/loading.tsx` (new), `app/globals.css`, `lib/brand-colors.ts` (new), `app/opengraph-image.tsx`, `app/error.tsx`, `app/not-found.tsx`, `DEMO.md`, `CLAUDE.md`, `README.md`, `HANDOFF.md`, `.farm-commits.json`.
+
+### Commands run
+
+None, no command access.
+
+### Open questions
+
+- `.farm-live.json` belongs to Phase 2. The keyless path needs no secret, so the real adapter has no required env keys. Phase 2 must define what the runner writes there besides `ADAPTER_MODE=real`.
+- Phase 2 replaces the three seed tokens with real captured snapshots.
+- `npm run seed` relies on Node loading `lib/data/seed.ts` as ESM without `"type": "module"` in `package.json` (syntax detection, Node 22.7 or newer). If the runner's Node is older, either upgrade Node or rename the seed module to `.mts`; no dependency is needed either way.
+- The wow moment numbers ($3,870 toward a few hundred dollars) are quoted from this file's Mission 3; they were not recomputed in this phase.
+
+### Next best step
+
+Mission 1 above: verify the CMC field pickers by response, then swap the seeds in `lib/data/seed.ts` and rerun `npm run seed`.
+
 ## 5. Definition of done
 
 - Deployed at https://efflux.vercel.app on live keyless CMC data, all three demo tokens loading on the live URL.
