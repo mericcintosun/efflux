@@ -3,8 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SceneSlot } from "@/components/scene-slot";
-import { getAdapter } from "@/lib/adapter";
-import { CMC_ENDPOINTS } from "@/lib/cmc";
+import { CMC_ENDPOINTS, getAdapter } from "@/lib/adapter";
 import { DEFAULT_HOLDING_USD, type TokenSnapshot } from "@/lib/data";
 import { exitQuote, fmtUsd, totalLiquidityUsd, fmtCompactUsd } from "@/lib/simulate";
 
@@ -111,7 +110,7 @@ export default async function NotesPage() {
             <p>
               Pushback: pools expose liqUsd but no raw reserves, so reserves are reconstructed. Short field names such as a0, a1 and tu
               in the liquidity change list are not described in the schema. The keyless tier shares one rate limit per IP, so the
-              server caches GET responses for 60 seconds and backs off on HTTP 429.
+              server caches responses for 60 seconds, gives every call 8 seconds, and retries once on HTTP 429 or a timeout.
             </p>
           </CardContent>
         </Card>

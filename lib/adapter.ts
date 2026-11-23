@@ -1,13 +1,18 @@
 // The one data seam. Pages and route handlers ask getAdapter() for tokens and
-// never import seed arrays themselves.
+// never import seed arrays, lib/cmc or lib/config themselves.
 //
 // ADAPTER_MODE=fake (the default) serves lib/data/seed.ts and never touches the
-// network. ADAPTER_MODE=real sends address lookups to CoinMarketCap through
-// loadExitBundle in lib/cmc.ts. Server-side only.
+// network. ADAPTER_MODE=real loads the demo tokens (DEMO_TOKENS in lib/config.ts)
+// and any pasted address live from CoinMarketCap through lib/cmc.ts, falling back
+// per token to the seed when a live load fails. Server-side only.
 
 import { CMC_ENDPOINTS, loadExitBundle } from "@/lib/cmc";
+import { DEMO_TOKENS, KEYLESS_BASE } from "@/lib/config";
 import { findToken, findTokenByAddress, tokens } from "@/lib/data/seed";
+import { errorBody } from "@/lib/errors";
 import type { ApiEnvelope, ApiProof, Platform, TokenSnapshot } from "@/lib/types";
+
+export { CMC_ENDPOINTS };
 
 export interface ExitAdapter {
   listTokens(): Promise<ApiEnvelope<TokenSnapshot[]>>;
@@ -15,7 +20,6 @@ export interface ExitAdapter {
   lookup(platform: Platform, address: string): Promise<ApiEnvelope<TokenSnapshot>>;
 }
 
-const KEYLESS_BASE = "https://pro-api.coinmarketcap.com/public-api";
 const SEED_NOTE = "Seed data, not a live response.";
 
 /** What each endpoint would carry, taken from the seed token's own fields. */
@@ -70,7 +74,7 @@ export function seedProof(t: TokenSnapshot): ApiProof[] {
 function seedToken(slug: string, source: "fake" | "snapshot"): ApiEnvelope<TokenSnapshot> {
   const t = findToken(slug);
   if (!t) {
-    return { source: "none", data: null, proof: [], message: `There is no sample token called "${slug}".` };
+    return { source: "none", data: null, proof: [], message: `There is no sample token called "${slug}".`, error: errorBody("not_found") };
   }
   return {
     source,
@@ -101,6 +105,7 @@ export const fakeAdapter: ExitAdapter = {
         proof: [],
         message:
           "Efflux is running on seed data, so only the three sample addresses resolve. Set ADAPTER_MODE=real to read any address from CoinMarketCap.",
+        error: errorBody("not_found"),
       };
     }
     return {
@@ -112,18 +117,64 @@ export const fakeAdapter: ExitAdapter = {
   },
 };
 
+/**
+ * Real mode sample list: every DEMO_TOKENS entry loads through loadExitBundle in
+ * parallel. A live result is used as is; a failed one (or a chain with no demo
+ * address) falls back to the seed token on the same chain.
+ */
+async function loadDemoTokens(): Promise<ApiEnvelope<TokenSnapshot[]>> {
+  const chains: Platform[] = ["base", "bsc", "solana"];
+  const results = await Promise.all(
+    chains.map(async (platform) => {
+      const seed = tokens.find((t) => t.platform === platform);
+      const demo = DEMO_TOKENS[platform];
+      if (!demo) return { platform, live: null as TokenSnapshot | null, seed, proof: [] as ApiProof[] };
+      const env = await loadExitBundle(demo.platform, demo.address);
+      return { platform, live: env.source === "live" ? env.data : null, seed, proof: env.proof };
+    })
+  );
+
+  const data: TokenSnapshot[] = [];
+  const fellBack: string[] = [];
+  for (const r of results) {
+    if (r.live) data.push(r.live);
+    else if (r.seed) {
+      data.push(r.seed);
+      fellBack.push(`${r.seed.symbol} (${r.platform})`);
+    }
+  }
+  const proof = results.flatMap((r) => r.proof);
+  const liveCount = data.length - fellBack.length;
+  const allLive = fellBack.length === 0 && data.length > 0;
+  return {
+    source: allLive ? "live" : "snapshot",
+    data,
+    proof,
+    message: allLive
+      ? `${data.length} tokens live from CoinMarketCap.`
+      : liveCount > 0
+        ? `Bundled snapshot used for ${fellBack.join(", ")}; the other ${liveCount} live from CoinMarketCap.`
+        : `Bundled snapshot used for ${fellBack.join(", ")}; CoinMarketCap returned nothing usable.`,
+  };
+}
+
 export const realAdapter: ExitAdapter = {
-  // Phase 2 swaps these seeds for captured snapshots of real tokens.
-  async listTokens() {
-    return {
-      source: "snapshot",
-      data: tokens,
-      proof: [],
-      message: `${tokens.length} bundled snapshots. Paste an address to read live data.`,
-    };
+  listTokens() {
+    return loadDemoTokens();
   },
   async getToken(slug) {
-    return seedToken(slug, "snapshot");
+    const env = await loadDemoTokens();
+    const t = (env.data ?? []).find((x) => x.slug === slug.toLowerCase());
+    if (!t) {
+      return { source: "none", data: null, proof: env.proof, message: `There is no sample token called "${slug}".`, error: errorBody("not_found") };
+    }
+    const isSeed = tokens.some((s) => s.slug === t.slug);
+    return {
+      source: isSeed ? "snapshot" : "live",
+      data: t,
+      proof: env.proof.filter((p) => p.url.includes(encodeURIComponent(t.address)) || p.body?.tokenAddress === t.address),
+      message: isSeed ? `Bundled snapshot for ${t.symbol}.` : `Live from CoinMarketCap: ${t.symbol}.`,
+    };
   },
   lookup(platform, address) {
     return loadExitBundle(platform, address);

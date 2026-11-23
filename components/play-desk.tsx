@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ExitStage, type ExitControls } from "@/components/exit-stage";
-import { PLATFORM_LABEL } from "@/lib/data";
+import { PLATFORM_LABEL, SOURCE_LABEL } from "@/lib/data";
+import { isErrorBody, type ErrorCode } from "@/lib/errors";
 import type { ApiEnvelope, ApiProof, DataSource, Platform, TokenSnapshot } from "@/lib/types";
 import { NON_SELLER_TAGS, eligibleSellers, fmtCompactUsd, fmtTokens, shortAddress, totalLiquidityUsd } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
@@ -25,22 +26,54 @@ type Status = { kind: "idle" } | { kind: "loading" } | { kind: "error"; message:
 
 const PLATFORMS: Platform[] = ["base", "bsc", "solana"];
 
-function sampleNote(source: DataSource): string {
-  return source === "fake" ? "Seed data" : "Bundled snapshot";
+type SourceState = { kind: DataSource; note: string; sample: boolean };
+
+function sampleSource(source: DataSource): SourceState {
+  return { kind: source, note: "Sample token", sample: true };
+}
+
+/** UI copy per error code. Switches on the code, never on server text. */
+function errorMessage(code: ErrorCode, platform: Platform, samplesSource: DataSource): string {
+  const chain = PLATFORM_LABEL[platform];
+  switch (code) {
+    case "invalid_input":
+      return platform === "solana"
+        ? "That does not look like a Solana mint address (32 to 44 base58 characters)."
+        : `That does not look like a ${chain} contract address (0x followed by 40 hex characters).`;
+    case "not_found":
+      return samplesSource === "fake"
+        ? "Efflux is running on seed data, so only the three sample addresses resolve here."
+        : `CoinMarketCap has no price or pools for this address on ${chain}. Check the chain and the address.`;
+    case "upstream_timeout":
+      return "CoinMarketCap took too long to answer. Try again in a moment.";
+    case "upstream_error":
+      return "CoinMarketCap returned an error, often the shared rate limit. Try again in a minute.";
+    case "parse_failure":
+      return "CoinMarketCap answered, but not with pool data Efflux can read.";
+    case "not_configured":
+      return "This server is not set up for live lookups.";
+  }
 }
 
 export function PlayDesk({
   initial,
   samples,
   samplesSource,
+  samplesProof = [],
 }: {
   initial: PlayInitial;
   samples: TokenSnapshot[];
   samplesSource: DataSource;
+  /** The requests behind the sample list (seed entries in fake mode, real calls in real mode). */
+  samplesProof?: ApiProof[];
 }) {
   const holdingId = useId();
+  const proofFor = useCallback(
+    (t: TokenSnapshot | null) => (t ? samplesProof.filter((p) => p.url.includes(t.address) || p.body?.tokenAddress === t.address) : []),
+    [samplesProof]
+  );
   const [token, setToken] = useState<TokenSnapshot | null>(() => samples.find((t) => t.slug === initial.slug) ?? samples[0] ?? null);
-  const [source, setSource] = useState<{ kind: DataSource; note: string }>({ kind: samplesSource, note: sampleNote(samplesSource) });
+  const [source, setSource] = useState<SourceState>(() => sampleSource(samplesSource));
   const [holdingUsd, setHoldingUsd] = useState(initial.holdingUsd);
   const [controls, setControls] = useState<ExitControls>({ ahead: initial.ahead, applyTax: initial.applyTax, applyDrain: initial.applyDrain });
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -48,35 +81,46 @@ export function PlayDesk({
   const [address, setAddress] = useState(initial.address ?? "");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [lookedUp, setLookedUp] = useState(false);
-  const [proof, setProof] = useState<ApiProof[]>([]);
+  const [proof, setProof] = useState<ApiProof[]>(() => proofFor(token));
   const [proofOpen, setProofOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const isLive = source.kind === "live";
+  const fromLookup = !source.sample;
 
-  const loadLive = useCallback(async (p: Platform, a: string) => {
-    setStatus({ kind: "loading" });
-    setLookedUp(true);
-    try {
-      const res = await fetch(`/api/exit?platform=${p}&address=${encodeURIComponent(a.trim())}`);
-      const envelope = (await res.json()) as ApiEnvelope<TokenSnapshot>;
-      setProof(envelope.proof ?? []);
-      if (!envelope.data) {
-        setStatus({ kind: "error", message: envelope.message });
-        return;
+  const loadLive = useCallback(
+    async (p: Platform, a: string) => {
+      setStatus({ kind: "loading" });
+      setLookedUp(true);
+      try {
+        const res = await fetch(`/api/exit?platform=${p}&address=${encodeURIComponent(a.trim())}`);
+        const body = (await res.json()) as unknown;
+        if (isErrorBody(body)) {
+          setProof([]);
+          setStatus({ kind: "error", message: errorMessage(body.error, p, samplesSource) });
+          return;
+        }
+        const envelope = body as ApiEnvelope<TokenSnapshot>;
+        setProof(envelope.proof ?? []);
+        if (!envelope.data) {
+          setStatus({ kind: "error", message: errorMessage("not_found", p, samplesSource) });
+          return;
+        }
+        const data = envelope.data;
+        setToken(data);
+        setExcluded([]);
+        setSource({
+          kind: envelope.source,
+          note: envelope.source === "live" ? `Read at ${new Date(data.snapshotAt).toLocaleTimeString("en-US")}` : envelope.message,
+          sample: false,
+        });
+        setStatus({ kind: "idle" });
+      } catch {
+        setStatus({ kind: "error", message: "The request did not reach our server. Check your connection and try again." });
       }
-      const data = envelope.data;
-      setToken(data);
-      setExcluded([]);
-      setSource({
-        kind: envelope.source,
-        note: envelope.source === "live" ? `Live from CoinMarketCap, ${new Date(data.snapshotAt).toLocaleTimeString("en-US")}` : envelope.message,
-      });
-      setStatus({ kind: "idle" });
-    } catch {
-      setStatus({ kind: "error", message: "The request did not reach our server. Check your connection and try again." });
-    }
-  }, []);
+    },
+    [samplesSource]
+  );
 
   // A shared link with platform + address loads the token on arrival.
   useEffect(() => {
@@ -90,9 +134,9 @@ export function PlayDesk({
   const pickSample = (t: TokenSnapshot) => {
     setToken(t);
     setExcluded([]);
-    setSource({ kind: samplesSource, note: sampleNote(samplesSource) });
+    setSource(sampleSource(samplesSource));
     setStatus({ kind: "idle" });
-    setProof([]);
+    setProof(proofFor(t));
   };
 
   const toggleExcluded = (addr: string) =>
@@ -106,7 +150,7 @@ export function PlayDesk({
       tax: controls.applyTax ? "1" : "0",
       drain: controls.applyDrain ? "1" : "0",
     });
-    if (isLive) {
+    if (fromLookup) {
       params.set("platform", token.platform);
       params.set("address", token.address);
     } else {
@@ -133,7 +177,7 @@ export function PlayDesk({
           {samples.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {samples.map((t) => (
-                <Button key={t.slug} variant={!isLive && token?.slug === t.slug ? "default" : "outline"} onClick={() => pickSample(t)}>
+                <Button key={t.slug} variant={!fromLookup && token?.slug === t.slug ? "default" : "outline"} onClick={() => pickSample(t)}>
                   {t.symbol} on {PLATFORM_LABEL[t.platform]}
                 </Button>
               ))}
@@ -187,7 +231,7 @@ export function PlayDesk({
             <h2 className="text-2xl md:text-3xl">
               {token.name} ({token.symbol})
             </h2>
-            {isLive ? <Badge variant="ok">Live</Badge> : <Badge variant="secondary">Seed data</Badge>}
+            <Badge variant={isLive ? "ok" : "secondary"}>{SOURCE_LABEL[source.kind]}</Badge>
             <span className="text-sm text-muted-foreground">
               {source.note}. {token.pools.length} pools, {fmtCompactUsd(liquidity)} liquidity.
             </span>
@@ -315,7 +359,7 @@ function ProofDrawer({ proof, source }: { proof: ApiProof[]; source: DataSource 
       ? "These are the requests behind the numbers above."
       : source === "fake"
         ? "Seed data, not live calls. These entries show the shape of each CoinMarketCap request; no request left the server."
-        : "These requests ran, but the data was not usable, so the snapshot is shown.";
+        : "These requests ran against CoinMarketCap. Where a call failed or came back unusable, the bundled snapshot is shown instead.";
   return (
     <div className="space-y-4">
       <p className="text-sm">

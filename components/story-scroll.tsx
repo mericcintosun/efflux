@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExitStage, type ExitControls } from "@/components/exit-stage";
-import { DEFAULT_HOLDING_USD } from "@/lib/data";
-import type { TokenSnapshot } from "@/lib/types";
+import { DEFAULT_HOLDING_USD, SOURCE_LABEL } from "@/lib/data";
+import type { DataSource, TokenSnapshot } from "@/lib/types";
 import { exitQuote, fmtUsd, type ExitResult } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +53,7 @@ const CHAPTERS: Chapter[] = [
  * scrolling under it. The active chapter sets the stage state from the first
  * token the page received through the adapter.
  */
-export function StoryScroll({ tokens }: { tokens: TokenSnapshot[] }) {
+export function StoryScroll({ tokens, source = "fake" }: { tokens: TokenSnapshot[]; source?: DataSource }) {
   const token = tokens[0];
   if (!token) {
     return (
@@ -66,10 +67,10 @@ export function StoryScroll({ tokens }: { tokens: TokenSnapshot[] }) {
       </section>
     );
   }
-  return <StoryChapters token={token} />;
+  return <StoryChapters token={token} source={source} />;
 }
 
-function StoryChapters({ token }: { token: TokenSnapshot }) {
+function StoryChapters({ token, source }: { token: TokenSnapshot; source: DataSource }) {
   const sellers = useMemo(() => exitQuote({ token, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: false, applyDrain: false }).sellers.length, [token]);
   const [active, setActive] = useState(0);
   const [controls, setControls] = useState<ExitControls>(() => CHAPTERS[0].preset!(sellers));
@@ -139,6 +140,12 @@ function StoryChapters({ token }: { token: TokenSnapshot }) {
               <div className="h-full bg-primary transition-[width] duration-500" style={{ width: `${((active + 1) / CHAPTERS.length) * 100}%` }} />
             </div>
           </nav>
+          <p className="mb-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Badge variant={source === "live" ? "ok" : "secondary"}>{SOURCE_LABEL[source]}</Badge>
+            <span>
+              {token.symbol}, {token.pools.length} pools, {token.holders.length} holders.
+            </span>
+          </p>
           <ExitStage
             compact
             token={token}

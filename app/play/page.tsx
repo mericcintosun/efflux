@@ -23,7 +23,7 @@ function clampNumber(v: string | undefined, fallback: number, min: number, max: 
 // URL by "Copy a link to this result", so a shared link reopens the same exit.
 export default async function PlayPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const { data, source } = await getAdapter().listTokens();
+  const { data, source, proof } = await getAdapter().listTokens();
   const samples = data ?? [];
   const wanted = (one(sp.token) ?? "").toLowerCase();
   const platform = one(sp.platform);
@@ -45,7 +45,7 @@ export default async function PlayPage({ searchParams }: { searchParams: SearchP
         then sells yours, and tells you what arrives.
       </p>
       <div className="mt-12">
-        <PlayDesk initial={initial} samples={samples} samplesSource={source} />
+        <PlayDesk initial={initial} samples={samples} samplesSource={source} samplesProof={proof} />
       </div>
     </div>
   );

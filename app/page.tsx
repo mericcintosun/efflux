@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 // CTA band. No columns inside a band, no cards inside a band.
 // Tokens arrive through the adapter seam (ADAPTER_MODE), never from a seed import.
 export default async function Home() {
-  const { data } = await getAdapter().listTokens();
+  const { data, source } = await getAdapter().listTokens();
   const list = data ?? [];
   const story = list[0];
 
@@ -65,7 +65,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <StoryScroll tokens={list} />
+      <StoryScroll tokens={list} source={source} />
 
       <section className="bg-background">
         <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
