@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tokens } from "@/lib/data/seed";
-import { exitQuote } from "@/lib/simulate";
+import { cutsWaterfall, exitQuote } from "@/lib/simulate";
 
 const HOLDING = 5000;
 const QUEUES = [0, 5, 10];
@@ -46,6 +46,52 @@ describe("exitQuote over the fixed seed tokens", () => {
           const b = q.breakdown;
           expect(b.impactUsd + b.taxUsd + b.drainUsd + b.queueUsd).toBeCloseTo(q.screenUsd - q.receiveUsd, 6);
         }
+      });
+
+      // The /play cuts waterfall (components/cuts-waterfall.tsx): the four printed
+      // cuts must add up to the printed gap between the wallet and the payout.
+      describe("cuts waterfall", () => {
+        const SWITCHES = [
+          { applyTax: false, applyDrain: false },
+          { applyTax: true, applyDrain: false },
+          { applyTax: false, applyDrain: true },
+          { applyTax: true, applyDrain: true },
+        ];
+        for (const ahead of [0, 10]) {
+          for (const s of SWITCHES) {
+            it(`sums the four cuts to the gap at ${ahead} wallets ahead, tax ${s.applyTax ? "on" : "off"}, drain ${s.applyDrain ? "on" : "off"}`, () => {
+              const q = exitQuote({ token: t, holdingUsd: HOLDING, walletsAhead: ahead, ...s });
+              const w = cutsWaterfall(q);
+              const cutUnits = w.cuts.reduce((sum, c) => sum + c.units, 0);
+
+              // Model: the unrounded cuts add up to wallet minus payout.
+              const b = q.breakdown;
+              expect(b.impactUsd + b.taxUsd + b.drainUsd + b.queueUsd).toBeCloseTo(q.screenUsd - q.receiveUsd, 6);
+
+              // Display: the rounded cuts add up to the rounded gap, exactly.
+              expect(w.cuts.map((c) => c.key)).toEqual(["impact", "tax", "drain", "queue"]);
+              expect(cutUnits).toBe(w.gapUnits);
+              expect(w.gapUnits).toBe(w.screenUnits - w.receiveUnits);
+              expect(w.cuts.reduce((sum, c) => sum + c.usd, 0)).toBeCloseTo(w.gapUsd, 9);
+              for (const c of w.cuts) {
+                expect(Number.isInteger(c.units)).toBe(true);
+                expect(c.units).toBeGreaterThanOrEqual(0);
+              }
+
+              // A switch that is off removes nothing.
+              if (!s.applyTax) expect(w.cuts[1].units).toBe(0);
+              if (!s.applyDrain) expect(w.cuts[2].units).toBe(0);
+              if (ahead === 0) expect(w.cuts[3].units).toBe(0);
+            });
+          }
+        }
+
+        it("repeat tomorrow lowers the payout when the LP shrank", () => {
+          const off = exitQuote({ token: t, holdingUsd: HOLDING, walletsAhead: 0, applyTax: true, applyDrain: false });
+          const on = exitQuote({ token: t, holdingUsd: HOLDING, walletsAhead: 0, applyTax: true, applyDrain: true });
+          if (t.lpChange24hPct < 0) expect(on.receiveUsd).toBeLessThan(off.receiveUsd);
+          else expect(on.receiveUsd).toBeCloseTo(off.receiveUsd, 9);
+        });
       });
 
       it("never pays more than the wallet shows", () => {

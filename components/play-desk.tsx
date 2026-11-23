@@ -46,7 +46,7 @@ function errorMessage(code: ErrorCode, platform: Platform, samplesSource: DataSo
         ? "Efflux is running on seed data, so only the three sample addresses resolve here."
         : `CoinMarketCap has no price or pools for this address on ${chain}. Check the chain and the address.`;
     case "upstream_timeout":
-      return "CoinMarketCap took too long to answer. Try again in a moment.";
+      return "CoinMarketCap did not answer within 4 seconds. Try again: the second try is usually served from the 60 second cache.";
     case "upstream_error":
       return "CoinMarketCap returned an error, often the shared rate limit. Try again in a minute.";
     case "parse_failure":
@@ -234,7 +234,12 @@ export function PlayDesk({
           {samples.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {samples.map((t) => (
-                <Button key={t.slug} variant={!fromLookup && token?.slug === t.slug ? "default" : "outline"} onClick={() => pickSample(t)}>
+                <Button
+                  key={t.slug}
+                  className="min-h-11"
+                  variant={!fromLookup && token?.slug === t.slug ? "default" : "outline"}
+                  onClick={() => pickSample(t)}
+                >
                   {t.symbol} on {PLATFORM_LABEL[t.platform]}
                 </Button>
               ))}
@@ -258,7 +263,15 @@ export function PlayDesk({
           >
             <div className="flex flex-wrap gap-2" role="group" aria-label="Chain">
               {PLATFORMS.map((p) => (
-                <Button key={p} type="button" size="sm" variant={platform === p ? "secondary" : "ghost"} aria-pressed={platform === p} onClick={() => setPlatform(p)}>
+                <Button
+                  key={p}
+                  type="button"
+                  size="sm"
+                  className="min-h-11"
+                  variant={platform === p ? "secondary" : "ghost"}
+                  aria-pressed={platform === p}
+                  onClick={() => setPlatform(p)}
+                >
                   {PLATFORM_LABEL[p]}
                 </Button>
               ))}
@@ -273,7 +286,7 @@ export function PlayDesk({
                 spellCheck={false}
               />
               {/* Submit guard: bound to the request status, not a timer. */}
-              <Button type="submit" disabled={status.kind === "loading" || !address.trim()} aria-busy={status.kind === "loading"}>
+              <Button type="submit" className="min-h-11" disabled={status.kind === "loading" || !address.trim()} aria-busy={status.kind === "loading"}>
                 {status.kind === "loading" ? "Reading CoinMarketCap..." : "Read from CoinMarketCap"}
               </Button>
             </div>
@@ -293,15 +306,18 @@ export function PlayDesk({
       {token ? (
         <section aria-label="Exit result" className="space-y-6">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl md:text-3xl">
+            <h2 className="min-w-0 break-words text-2xl md:text-3xl">
               {token.name} ({token.symbol})
             </h2>
             <Badge variant={isLive ? "ok" : "secondary"}>{SOURCE_LABEL[source.kind]}</Badge>
             <span className="text-sm text-muted-foreground">
               {source.note}. {token.pools.length} pools, {fmtCompactUsd(liquidity)} liquidity.
             </span>
+            <span className="block w-full truncate text-xs text-muted-foreground" title={token.address}>
+              {PLATFORM_LABEL[token.platform]} address {shortAddress(token.address)}
+            </span>
           </div>
-          <div className="max-w-xs space-y-2 text-sm font-semibold">
+          <div className="w-full max-w-xs space-y-2 text-sm font-semibold">
             <label htmlFor={holdingId} className="block">
               What your wallet shows, in USD
             </label>
@@ -324,26 +340,30 @@ export function PlayDesk({
                 {...controls}
                 ahead={ahead}
                 onChange={(next) => setControls((c) => ({ ...c, ...next }))}
+                onEmptyAction={focusAddress}
+                onRetry={retryLookup}
               />
             ) : (
-              <div className="bg-surface px-6 py-8">
-                <p className="font-display text-2xl md:text-3xl">No liquidity to sell into</p>
-                <p className="mt-3 max-w-[60ch] text-sm">
-                  {token.symbol} has no pool with a dollar value or no price right now, so a sale of {fmtCompactUsd(holdingUsd)} would pay
-                  nothing. Try another chain or another address.
-                </p>
-              </div>
+              // EmptyState: zero-liquidity pools or no price, so there is no waterfall to draw.
+              <EmptyState
+                title="No liquidity to sell into"
+                body={`${token.symbol} has no pool with a dollar value or no price right now, so a sale of ${fmtCompactUsd(holdingUsd)} would pay nothing. The cuts waterfall appears after you pick a token with live pools and enter a holding; try another chain or paste another address.`}
+                cta="Paste an address"
+                onAction={focusAddress}
+              />
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={copyLink}>
+            <Button variant="outline" className="min-h-11" onClick={copyLink}>
               {copied ? "Link copied" : "Copy a link to this result"}
             </Button>
-            <Button variant="ghost" aria-expanded={proofOpen} onClick={() => setProofOpen((o) => !o)}>
+            <Button variant="ghost" className="min-h-11" aria-expanded={proofOpen} aria-controls="proof-drawer" onClick={() => setProofOpen((o) => !o)}>
               {proofOpen ? "Hide the CoinMarketCap calls" : "Show the CoinMarketCap calls"}
             </Button>
           </div>
-          {proofOpen ? <ProofDrawer proof={proof} source={source.kind} lastFailed={lookupFailed} /> : null}
+          <div id="proof-drawer" className="max-w-full">
+            {proofOpen ? <ProofDrawer proof={proof} source={source.kind} lastFailed={lookupFailed} /> : null}
+          </div>
         </section>
       ) : (
         <section aria-label="Exit result">
@@ -369,8 +389,8 @@ export function PlayDesk({
             {token.holders.length === 0 ? (
               <p className="bg-background px-4 py-6 text-sm">No holder list came back for this token, so nobody sells ahead of you.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <ol className="min-w-[36rem] divide-y divide-border bg-background">
+              <div className="max-w-full overflow-x-auto">
+                <ol className="w-full divide-y divide-border bg-background">
                   {[...token.holders]
                     .sort((a, b) => b.balance - a.balance)
                     .map((h) => {
@@ -381,14 +401,16 @@ export function PlayDesk({
                       return (
                         <li key={h.address} className={cn("flex flex-wrap items-center gap-3 px-4 py-3 text-sm", sellsFirst && "bg-deep")}>
                           <span className="w-6 font-display tabular-nums">{rank >= 0 ? rank + 1 : ""}</span>
-                          <span className="min-w-[9rem] font-semibold">{h.label ?? shortAddress(h.address)}</span>
+                          <span className="min-w-[9rem] max-w-full truncate font-semibold" title={h.address}>
+                            {h.label ?? shortAddress(h.address)}
+                          </span>
                           <span className="tabular-nums">
                             {fmtTokens(h.balance)} {token.symbol}
                           </span>
                           <span className="tabular-nums text-muted-foreground">
                             {((h.balance / Math.max(token.supply, 1)) * 100).toFixed(1)}% of supply
                           </span>
-                          <span className="flex gap-1">
+                          <span className="flex flex-wrap gap-1">
                             {h.tags.map((t) => (
                               <Badge key={t} variant="outline">
                                 {t}
@@ -397,7 +419,7 @@ export function PlayDesk({
                             {sellsFirst ? <Badge>sells before you</Badge> : null}
                           </span>
                           {!sitsOut ? (
-                            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => toggleExcluded(h.address)}>
+                            <Button size="sm" variant="ghost" className="ml-auto min-h-11" onClick={() => toggleExcluded(h.address)}>
                               {isOut ? "Put back in the queue" : "Will not sell"}
                             </Button>
                           ) : null}
@@ -425,8 +447,8 @@ function ProofDrawer({ proof, source, lastFailed }: { proof: ApiProof[]; source:
       <div className="space-y-4">
         {failedNote}
         <div className="bg-surface px-6 py-6 text-sm">
-          You are looking at a sample token, so no request has been made yet. Paste any token address above and every CoinMarketCap
-          call behind the result shows up here, with its raw response.
+          No CoinMarketCap call has been made for the token on screen yet. Paste a token address above and press &quot;Read from
+          CoinMarketCap&quot;: each of the five requests behind the result then shows up here with its status, timing and raw response.
         </div>
       </div>
     );
@@ -445,7 +467,7 @@ function ProofDrawer({ proof, source, lastFailed }: { proof: ApiProof[]; source:
       </p>
       {proof.map((p, i) => (
         <details key={`${p.endpoint}-${i}`} className="bg-surface" open={i === 0}>
-          <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3 text-sm font-semibold">
+          <summary className="flex min-h-11 cursor-pointer flex-wrap items-center gap-3 px-4 py-3 text-sm font-semibold">
             {source === "fake" ? (
               <Badge variant="secondary">Seed</Badge>
             ) : (
@@ -458,11 +480,14 @@ function ProofDrawer({ proof, source, lastFailed }: { proof: ApiProof[]; source:
               {source === "fake" ? "illustrative" : `${p.ms} ms`}, {p.keyed ? "keyed" : "keyless"}
             </span>
           </summary>
-          <div className="space-y-2 px-4 pb-4 text-xs">
-            <p className="break-all">{p.url}</p>
+          <div className="min-w-0 space-y-2 px-4 pb-4 text-xs">
+            <p className="break-all" title={p.url}>
+              {p.url}
+            </p>
             {p.body ? <p className="break-all">Body: {JSON.stringify(p.body)}</p> : null}
-            <div className="max-h-72 overflow-x-auto overflow-y-auto">
-              <pre className="whitespace-pre-wrap break-all bg-background p-3 font-sans">{p.excerpt}</pre>
+            {/* The raw response scrolls inside its own box, so long JSON lines never widen the page. */}
+            <div className="max-h-72 w-full max-w-full overflow-x-auto overflow-y-auto bg-background">
+              <pre className="w-max min-w-full whitespace-pre p-3 font-sans">{p.excerpt}</pre>
             </div>
           </div>
         </details>

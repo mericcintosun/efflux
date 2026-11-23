@@ -41,6 +41,15 @@ export function PlaySkeleton() {
         <div className="efflux-wipe h-48 bg-surface" />
         <div className="space-y-4">
           <div className="efflux-wipe h-16 max-w-md bg-deep" />
+          {/* The cuts waterfall placeholder: wallet, four cuts, payout. */}
+          <div className="space-y-3">
+            <div className="efflux-wipe h-4 w-full bg-deep" />
+            <div className="efflux-wipe ml-auto h-4 w-1/4 bg-surface" />
+            <div className="efflux-wipe ml-auto h-4 w-1/6 bg-surface" />
+            <div className="efflux-wipe ml-auto h-4 w-1/6 bg-surface" />
+            <div className="efflux-wipe ml-auto h-4 w-1/5 bg-surface" />
+            <div className="efflux-wipe h-4 w-1/4 bg-deep" />
+          </div>
           <div className="efflux-wipe h-36 bg-surface" />
         </div>
       </div>
@@ -87,7 +96,7 @@ export function ErrorState({
       <p className="font-display text-2xl leading-tight md:text-3xl">{title}</p>
       <p className="mt-3 max-w-[60ch] text-sm">{body}</p>
       <div className="mt-6 flex flex-wrap gap-3">
-        <Button type="button" onClick={() => onRetry()}>
+        <Button type="button" className="min-h-11" onClick={() => onRetry()}>
           {retryLabel}
         </Button>
         {children}
@@ -121,11 +130,11 @@ export function EmptyState({
       <p className="mt-3 max-w-[60ch] text-sm">{body}</p>
       <div className="mt-6">
         {href ? (
-          <Button asChild>
+          <Button asChild className="min-h-11">
             <Link href={href}>{cta}</Link>
           </Button>
         ) : (
-          <Button type="button" onClick={() => onAction?.()}>
+          <Button type="button" className="min-h-11" onClick={() => onAction?.()}>
             {cta}
           </Button>
         )}

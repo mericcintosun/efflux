@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo } from "react";
+import { CutsWaterfall } from "@/components/cuts-waterfall";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import type { TokenSnapshot } from "@/lib/types";
@@ -18,17 +19,35 @@ interface ExitStageProps extends ExitControls {
   holdingUsd: number;
   excluded?: string[];
   onChange: (next: Partial<ExitControls>) => void;
-  /** Story mode: tighter layout for the sticky stage on the home route. */
+  /** Story mode: tighter layout for the sticky stage on the home route (loss bar instead of the waterfall). */
   compact?: boolean;
+  /** Waterfall empty state action on /play ("Paste an address"). */
+  onEmptyAction?: () => void;
+  /** Waterfall error state retry on /play. */
+  onRetry?: () => void;
   className?: string;
 }
 
 /**
  * The live exit panel: what the wallet shows, what a sale pays, where the
  * difference went, and the controls that move it. Used by the story on / and by
- * the free-form simulator on /play.
+ * the free-form simulator on /play. On /play the difference is drawn as the
+ * cuts waterfall (components/cuts-waterfall.tsx); the sticky story panel keeps
+ * the one-line loss bar so it stays short.
  */
-export function ExitStage({ token, holdingUsd, excluded, ahead, applyTax, applyDrain, onChange, compact, className }: ExitStageProps) {
+export function ExitStage({
+  token,
+  holdingUsd,
+  excluded,
+  ahead,
+  applyTax,
+  applyDrain,
+  onChange,
+  compact,
+  onEmptyAction,
+  onRetry,
+  className,
+}: ExitStageProps) {
   const sliderId = useId();
   const q = useMemo(
     () => exitQuote({ token, holdingUsd, walletsAhead: ahead, applyTax, applyDrain, excluded }),
@@ -63,7 +82,11 @@ export function ExitStage({ token, holdingUsd, excluded, ahead, applyTax, applyD
         <ExitCurve q={q} />
       </div>
 
-      <LossBar q={q} token={token} ahead={ahead} />
+      {compact ? (
+        <LossBar q={q} token={token} ahead={ahead} />
+      ) : (
+        <CutsWaterfall q={q} token={token} applyTax={applyTax} applyDrain={applyDrain} onEmptyAction={onEmptyAction} onRetry={onRetry} />
+      )}
 
       <div className="space-y-3">
         <label htmlFor={sliderId} className="flex items-baseline justify-between gap-4 text-sm font-semibold">
@@ -79,11 +102,19 @@ export function ExitStage({ token, holdingUsd, excluded, ahead, applyTax, applyD
           step={1}
           value={q.walletsAhead}
           disabled={maxAhead === 0}
+          className="min-h-11"
           onChange={(e) => onChange({ ahead: Number(e.target.value) })}
         />
+        {maxAhead === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            No holder can sell ahead of you: the holder list is empty or every large wallet is a pool, burn, exchange, bridge or
+            locker. The slider moves once a token with sellable holders is loaded.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
+            className="min-h-11 whitespace-normal text-left"
             variant={applyTax ? "default" : "outline"}
             aria-pressed={applyTax}
             disabled={token.sellTaxPct <= 0}
@@ -93,12 +124,13 @@ export function ExitStage({ token, holdingUsd, excluded, ahead, applyTax, applyD
           </Button>
           <Button
             size="sm"
+            className="min-h-11 whitespace-normal text-left"
             variant={applyDrain ? "default" : "outline"}
             aria-pressed={applyDrain}
             disabled={lp >= 0}
             onClick={() => onChange({ applyDrain: !applyDrain })}
           >
-            {lp < 0 ? `24h LP pulled ${Math.abs(lp)}%, repeat tomorrow` : "LP not shrinking"}
+            {lp < 0 ? `Assume tomorrow repeats the last 24 hours (LP moved ${lp}%)` : "LP did not shrink in 24 hours"}
           </Button>
         </div>
         {!compact && q.conservative ? (

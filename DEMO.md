@@ -1,4 +1,4 @@
-# Efflux demo contract (90 seconds)
+# Efflux demo contract (90 seconds, 8 steps)
 
 **Problem.** Your wallet shows $5,000, but what would a sale actually pay?
 
@@ -16,7 +16,8 @@
 4. **`/` chapter "Hidden cuts".** Sell tax and the 24h LP drain switch on; the loss bar splits the gap into impact, tax, drain and queue. On the page this chapter sits before "The queue"; jump back to it with the chapter indicator. Files: `components/story-scroll.tsx`, `components/exit-stage.tsx`.
 5. **`/play` free-form tool.** Pick a sample token, set the holding, move the queue, take a wallet out with "Will not sell". Files: `app/play/page.tsx`, `components/play-desk.tsx`.
 6. **`/play` proof drawer.** Press "Show the CoinMarketCap calls" to see each request with its response. Files: `components/play-desk.tsx`, `app/api/exit/route.ts`.
-7. **`/play` share link, then `/notes`.** Press "Copy a link to this result", open it in a new tab and the same result comes back. Finish on the method and endpoint list. Files: `components/play-desk.tsx`, `app/notes/page.tsx`.
+7. **`/play` cuts waterfall.** Below "A sale pays you" on `/play`, the hidden cuts are a waterfall: "Wallet shows", then price impact, sell tax, 24h LP drain and the queue as four separate dollar rows, then "A sale pays you". Expected: the wallet row, the four cuts and the payout row; the line under them shows the four cuts adding up to the gap. Toggling "Assume tomorrow repeats the last 24 hours (LP moved X%)" fills the LP drain row and lowers the payout. Files: `components/exit-stage.tsx`, `components/cuts-waterfall.tsx`, `components/play-desk.tsx`.
+8. **`/play` share link, then `/notes`.** Press "Copy a link to this result", open it in a new tab and the same result comes back. Finish on the method and endpoint list. Files: `components/play-desk.tsx`, `app/notes/page.tsx`.
 
 **Closing line.** The number on screen is not yours. Efflux tells you how much of it is.
 

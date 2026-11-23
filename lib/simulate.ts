@@ -170,6 +170,73 @@ export function exitQuote(input: ExitInput): ExitResult {
   };
 }
 
+export type CutKey = "impact" | "tax" | "drain" | "queue";
+
+export interface WaterfallCut {
+  key: CutKey;
+  /** The cut in whole display units (dollars, or cents for positions under $100). */
+  units: number;
+  /** The same cut in dollars, ready for fmtUsd. */
+  usd: number;
+}
+
+export interface Waterfall {
+  /** 1 = whole dollars, 0.01 = cents. */
+  unit: 1 | 0.01;
+  screenUnits: number;
+  receiveUnits: number;
+  gapUnits: number;
+  screenUsd: number;
+  receiveUsd: number;
+  gapUsd: number;
+  cuts: WaterfallCut[];
+}
+
+/**
+ * Display rounding for the cuts waterfall on /play. The model numbers are not
+ * touched: exitQuote() already makes the four cuts add up to screen minus
+ * receive. Rounding each one on its own could still print, say, $1 too much, so
+ * this rounds the wallet and the payout to the display unit first, then hands
+ * the four cuts their rounded share by largest remainder. The printed cuts
+ * always add up to the printed gap, to the unit.
+ */
+export function cutsWaterfall(q: ExitResult): Waterfall {
+  const unit: 1 | 0.01 = Math.abs(q.screenUsd) >= 100 ? 1 : 0.01;
+  const per = unit === 1 ? 1 : 100;
+  const screenUnits = Math.round(q.screenUsd * per);
+  const receiveUnits = Math.min(screenUnits, Math.round(q.receiveUsd * per));
+  const gapUnits = Math.max(0, screenUnits - receiveUnits);
+
+  const keys: CutKey[] = ["impact", "tax", "drain", "queue"];
+  const b = q.breakdown;
+  const raw = [b.impactUsd, b.taxUsd, b.drainUsd, b.queueUsd].map((v) => Math.max(0, v) * per);
+  const units = raw.map((v) => Math.floor(v));
+  // Largest fractional part first; ties go to the earlier cut.
+  const order = raw.map((v, i) => ({ i, r: v - units[i] })).sort((x, y) => y.r - x.r || x.i - y.i);
+  let rest = gapUnits - units.reduce((s, v) => s + v, 0);
+  for (let k = 0; rest > 0; k++, rest--) units[order[k % order.length].i] += 1;
+  while (rest < 0) {
+    // Take the unit back from the largest cut, so no cut goes below zero.
+    let at = 0;
+    for (let i = 1; i < units.length; i++) if (units[i] > units[at]) at = i;
+    if (units[at] <= 0) break;
+    units[at] -= 1;
+    rest += 1;
+  }
+
+  const toUsd = (u: number) => (unit === 1 ? u : u / 100);
+  return {
+    unit,
+    screenUnits,
+    receiveUnits,
+    gapUnits,
+    screenUsd: toUsd(screenUnits),
+    receiveUsd: toUsd(receiveUnits),
+    gapUsd: toUsd(gapUnits),
+    cuts: keys.map((key, i) => ({ key, units: units[i], usd: toUsd(units[i]) })),
+  };
+}
+
 export function totalLiquidityUsd(token: TokenSnapshot): number {
   return token.pools.reduce((s, p) => s + p.liqUsd, 0);
 }
