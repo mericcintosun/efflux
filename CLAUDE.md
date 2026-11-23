@@ -13,7 +13,9 @@ Efflux: what selling a small DEX token pays today, and what is left after the bi
 
 - `lib/types.ts` shared types and `ApiEnvelope`. `lib/data/seed.ts` seed tokens. `lib/data.ts` is a compat barrel.
 - `lib/adapter.ts` is the only data seam: `getAdapter()` reads `ADAPTER_MODE` (`fake` default, `real` calls CMC via `lib/cmc.ts`). Pages and routes never import the seed array.
+- `lib/config.ts` is the single reader of `process.env` for CMC settings, the key and demo addresses (only `ADAPTER_MODE` is read in `lib/adapter.ts`). `lib/cmc-parse.ts` pure pickers, `lib/errors.ts` error codes, `lib/schemas.ts` zod route inputs.
 - `lib/simulate.ts` pure exit math. Do not change it casually.
+- `npm test` (vitest, `tests/`), `npm run proof` (real keyless CMC calls into README proof blocks).
 
 ## Stack pitfalls
 

@@ -23,7 +23,8 @@
 ## Data modes
 
 - `ADAPTER_MODE=fake` (the default when unset) serves the seed tokens in `lib/data/seed.ts` through `lib/adapter.ts`. No network calls. The proof drawer labels its entries as seed data.
-- `ADAPTER_MODE=real` sends address lookups to CoinMarketCap through `lib/cmc.ts` (keyless public API, or the keyed host when `CMC_PRO_API_KEY` is set). Only this mode shows the green "Live" badge.
+- `ADAPTER_MODE=real` loads the demo tokens (`DEMO_TOKENS` in `lib/config.ts`: BRETT on Base and BONK on Solana by default, BSC only when `EFFLUX_DEMO_BSC_ADDRESS` is set) live from CoinMarketCap through `lib/cmc.ts`, so steps 2 and 3 run `exitQuote()` over real pools and holders. Address lookups on `/play` go live too (keyless public API, or the keyed host when `CMC_PRO_API_KEY` is set). A token that fails to load falls back to its seed token.
+- The source note on `/` and `/play` reads "Live from CoinMarketCap" (green), "Seed data, not a live response" (fake mode) or "Bundled snapshot, CoinMarketCap was unavailable for some tokens" (real mode with a fallback).
 
 ## Recording
 

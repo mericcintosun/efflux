@@ -47,7 +47,7 @@ All three pages are linked from the header (`Story`, `Simulator`, `Notes`) and t
 ### File map
 
 - `lib/simulate.ts`: the whole model, pure functions. `exitQuote()` returns receive amount, loss breakdown (impact, tax, drain, queue), the 0..N curve and pool level.
-- `lib/cmc.ts`: **real CoinMarketCap integration**. `loadExitBundle(platform, address)` calls five DEX endpoints on the keyless host (or the keyed host when `CMC_PRO_API_KEY` is set), retries 429 with backoff, caches GETs 60 s, records every call as `ApiProof`. Field pickers are defensive because some fields are undocumented.
+- `lib/cmc.ts`: **real CoinMarketCap integration**. `loadExitBundle(platform, address)` calls five DEX endpoints on the keyless host (or the keyed host when `CMC_PRO_API_KEY` is set), 8 s timeout and one retry per call, caches 60 s, records every call as `ApiProof`, returns typed `error` codes. Pickers live in `lib/cmc-parse.ts` (Phase 2).
 - `lib/data.ts`: three seed tokens (FIN on Base, MOSS on BNB Chain, SALT on Solana) with pools, 12 to 13 holders each, sell tax and 24h LP change.
 - `components/exit-stage.tsx`: the live panel (wallet shows, sale pays, curve, loss bar, queue slider, tax and drain toggles). Shared by `/` and `/play`.
 - `components/pool-scene-frame.tsx` + `components/pool-scene.tsx`: kit K6, the 3D pool (see below).
@@ -60,7 +60,7 @@ All three pages are linked from the header (`Story`, `Simulator`, `Notes`) and t
 - Real: every CMC call in `lib/cmc.ts` (`cmcCall`, `loadExitBundle`). Pasting an address on `/play` hits CoinMarketCap live.
 - Seeded: the home story and the default `/play` view run on `tokens` in `lib/data.ts`. They are illustrative microcaps with fake addresses. **Replace them with captured snapshots of three real, long-lived tokens** before recording (see Mission 1).
 - Fallback: `loadExitBundle` returns the bundled snapshot when CMC returns no usable pools for a seeded address, and says so in `message`.
-- Unverified: the field pickers (`parsePools`, `parseHolders`, `parseSellTaxPct`, `parseLpChangePct`) and `PLATFORM_PARAM` in `lib/cmc.ts` are educated guesses from the OpenAPI schema. Marked with TODOs.
+- Unverified: the field pickers (`parsePools`, `parseHolders`, `parseSellTaxPct`, `parseLpChangePct`, now in `lib/cmc-parse.ts`) and `PLATFORM_PARAM` (now in `lib/config.ts`) are educated guesses from the OpenAPI schema until `npm run proof` output confirms them.
 
 ### Interaction kit K6 (three)
 
@@ -156,6 +156,74 @@ None, no command access.
 ### Next best step
 
 Mission 1 above: verify the CMC field pickers by response, then swap the seeds in `lib/data/seed.ts` and rerun `npm run seed`.
+
+## Phase 2 log (real CoinMarketCap DEX data behind the adapter seam)
+
+### Goal
+
+Make the CoinMarketCap DEX API the real mechanism behind DEMO.md steps 2 and 3: in `ADAPTER_MODE=real` the queue slider on `/` runs `exitQuote()` over pools and holders fetched live from CMC (keyless first), with typed errors, zod edge validation, tests and a proof script. Fake mode stays the default and keeps rendering every step.
+
+### Status
+
+All six slices written by file editing only. Build, tests and proof are unverified until the runner and the human run them.
+
+- Mechanism that went real: the CMC DEX endpoints `/v1/dex/token`, `/v1/dex/token/pools`, POST `/v1/dex/holders/list`, `/v1/dex/security/detail`, `/v1/dex/liquidity-change/list` (plus `searchTokens()` on `/v1/dex/search`, no UI), keyless host first, keyed host only when `CMC_PRO_API_KEY` is set.
+- `realAdapter.listTokens()` loads every `DEMO_TOKENS` entry through `loadExitBundle` in parallel; a failed token falls back to the seed token on the same chain; `source` is `live` only when all are live, otherwise `snapshot` with a message naming the fallbacks. `getToken` resolves from the same list. `lookup` is live.
+- Still fixtures: `fakeAdapter` entirely (the default); in real mode the BSC sample stays the seed token MOSS unless `EFFLUX_DEMO_BSC_ADDRESS` is set; any demo token whose live load fails.
+- `.farm-live.json` env names: `requiredEnv` is empty because the real path uses the keyless public API and needs no secret; `optionalEnv` is `CMC_PRO_API_KEY`, `EFFLUX_DEMO_BASE_ADDRESS`, `EFFLUX_DEMO_BSC_ADDRESS`, `EFFLUX_DEMO_SOLANA_ADDRESS`. All four are read by `lib/config.ts` and listed in `.env.example`.
+
+### Decisions
+
+- `lib/config.ts` is the only reader of CMC and demo env names; `lib/adapter.ts` keeps the single `ADAPTER_MODE` read.
+- Every CMC fetch uses `next: { revalidate: 60 }` (GET and POST) and no `no-store`, so `/` and `/notes` stay ISR pages in real mode instead of throwing a dynamic bailout inside the client's try/catch. Build time fetches fall back to seed if the build machine has no network.
+- `CMC_ENDPOINTS` is re-exported from `lib/adapter.ts` so `/notes` no longer imports `lib/cmc`.
+- `SOURCE_LABEL` lives in `lib/data.ts` (the client-safe barrel) so `/` and `/play` show the same three sentences.
+- Error responses are exactly `{ error, hint }`; codes and statuses in `lib/errors.ts` (`not_configured` maps to 503, unused today). The fake-mode "only sample addresses resolve" sentence moved into the UI: `components/play-desk.tsx` shows it for `not_found` when the samples are seed data.
+- `/api/tokens` takes no parameters; `tokensQuerySchema` rejects any query key with 400.
+- Holder tag matching for "lp" now needs a word boundary (`\blp\b`), so words such as "help" no longer tag a holder as a pool.
+- The `/play` proof drawer now shows the sample list's proof entries for the picked sample (seed entries in fake mode, real calls in real mode).
+
+### Failed attempts
+
+None.
+
+### Files changed
+
+New: `lib/config.ts`, `lib/errors.ts`, `lib/schemas.ts`, `lib/cmc-parse.ts`, `scripts/proof.mjs`, `.farm-live.json`, `vitest.config.ts`, `tests/simulate.test.ts`, `tests/cmc-parse.test.ts`, `tests/schemas.test.ts`, `fixtures/cmc/pools.json`, `fixtures/cmc/holders.json`, `fixtures/cmc/security.json`, `fixtures/cmc/liquidity-change.json`, `.farm-commits.json`.
+Edited: `lib/cmc.ts`, `lib/types.ts`, `lib/adapter.ts`, `lib/data.ts`, `app/api/exit/route.ts`, `app/api/tokens/route.ts`, `app/page.tsx`, `app/play/page.tsx`, `app/notes/page.tsx` (import path, retry claim), `components/play-desk.tsx`, `components/story-scroll.tsx`, `package.json`, `.env.example`, `README.md`, `DEMO.md`, `CLAUDE.md`, `HANDOFF.md`.
+
+### Commands run
+
+None, no command access.
+
+### Unmet or unverified items (evidence)
+
+- Field pickers not tightened: the repo holds no captured CMC response, so the candidate lists in `lib/cmc-parse.ts` are unchanged guesses; field names are confirmed only by the `cmc-fields` block that `npm run proof` writes into README.md.
+- `tests/simulate.test.ts:33` uses `toMatchSnapshot()`; the snapshot file is created on the first `npm test`, which the runner does not run. Commit `tests/__snapshots__/` after the first human run.
+- `components/play-desk.tsx:99`: a failed lookup clears the proof drawer, because error bodies are strictly `{ error, hint }` and carry no proof. Step 6 shows real calls only on success.
+- `components/play-desk.tsx:234`: in real mode with a fallback, every sample button shows the list-level "Bundled snapshot" badge, even the samples that loaded live. Per-token source is not tracked on the client.
+- `lib/cmc.ts:108`: caching of the holders POST by the Next data cache is assumed, not observed.
+- `lib/cmc-parse.ts:107`: `actualBalance` is assumed to be decimal adjusted. If it is raw units, the queue is wildly oversized.
+- The wow numbers on live BRETT are not known; the "$3,870 toward a few hundred dollars" line in DEMO.md is for the seed token FIN.
+- No `/api/search` route exists (no new routes allowed this phase); `searchTokens()` is ready for it.
+
+### Open questions
+
+- Is the `platform` query parameter right (`base`, `bsc`, `solana`), or do the DEX endpoints want a chain id or a different slug? `PLATFORM_PARAM` in `lib/config.ts`.
+- Is holder `percent` a fraction or a percent? Efflux does not use it today.
+
+### Manual checklist (facts only a person can supply)
+
+1. Run `npm run proof` and read the README `cmc-call` block: confirm BRETT (`0x532f27101965dd16442E59d40670FaF5eBB142E4`) and BONK (`DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`) return pools with status 200.
+2. Read the `cmc-fields` block; if a picker key is missing, fix the candidate list in `lib/cmc-parse.ts`.
+3. Pick a long-lived BSC token, set `EFFLUX_DEMO_BSC_ADDRESS` in Vercel and `.env.local`, rerun `npm run proof`.
+4. Run `npm test` once and commit the generated snapshot.
+5. Swap the seeds in `lib/data/seed.ts` for snapshots built from the captured responses, then `npm run seed`.
+6. On the deployed URL with `ADAPTER_MODE=real`: confirm the green "Live from CoinMarketCap" note on `/`, drag the queue slider, open the proof drawer on `/play`.
+
+### Next best step
+
+Run `npm run proof`, correct any picker key the `cmc-fields` block contradicts, then rehearse the queue drag on live BRETT and decide whether the story should open on the Base or the Solana token.
 
 ## 5. Definition of done
 
