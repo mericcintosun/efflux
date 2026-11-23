@@ -13,8 +13,21 @@ const brandFiles = fs.existsSync(brandDir)
       .map((f) => f.slice(0, -4))
   : [];
 
+// Baseline response headers for every route (Phase 4 security pass). Efflux
+// embeds no third-party frames, asks for no device permission and sends no
+// referrer detail to other origins.
+const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+];
+
 const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_BRAND_FILES: brandFiles.join(",") },
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
 };
 
 export default nextConfig;
