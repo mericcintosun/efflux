@@ -73,6 +73,23 @@
   --radius-xl: 0.125rem;
   --radius-2xl: 0.125rem;
 
+  /* Type scale: Unbounded display sizes at poster scale, Manrope body sizes. */
+  --text-display-xl: 4.5rem;
+  --text-display-xl--line-height: 1.02;
+  --text-display-lg: 3.75rem;
+  --text-display-lg--line-height: 1.04;
+  --text-display-md: 2.25rem;
+  --text-display-md--line-height: 1.15;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.6;
+  --text-body: 1rem;
+  --text-body--line-height: 1.6;
+
+  /* Spacing: the wide white gaps between bands. */
+  --spacing-band: 6rem;
+  --spacing-band-sm: 4rem;
+  --spacing-gutter: 2rem;
+
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-display: var(--font-unbounded), "Arial Black", "Helvetica Neue", Arial, sans-serif;
 }

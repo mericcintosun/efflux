@@ -81,7 +81,11 @@ npm run dev
 # open http://localhost:3000
 ```
 
-No environment variables are required. `.env.example` lists the one optional key.
+No environment variables are required. `.env.example` lists every key.
+
+### Data modes
+
+Pages and API routes read tokens through one adapter (`lib/adapter.ts`). With `ADAPTER_MODE=fake`, the default, they serve the seed tokens in `lib/data/seed.ts` and make no network calls. With `ADAPTER_MODE=real`, address lookups go to the CoinMarketCap DEX API through `lib/cmc.ts`. `npm run seed` writes the seed tokens to `fixtures/seed.json`, and two runs give the same file.
 
 Routes:
 

@@ -1,14 +1,11 @@
 import { ImageResponse } from "next/og";
+import { DEEP, GROUND, INK, MAGENTA } from "@/lib/brand-colors";
 
 export const alt = "Efflux: what selling your DEX token actually pays";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Palette from IDENTITY.md (D2 gallery). ImageResponse cannot read CSS variables.
-const GROUND = "#ffffff";
-const INK = "#17161a";
-const MAGENTA = "#d92bd9";
-const DEEP = "#ececea";
+// Palette from IDENTITY.md (D2 gallery), via lib/brand-colors.ts.
 
 export default function OpengraphImage() {
   return new ImageResponse(

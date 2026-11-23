@@ -3,11 +3,15 @@ import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <div className="space-y-4 py-24 text-center">
-      <h2 className="text-xl font-semibold">Page not found</h2>
-      <Button asChild variant="outline">
-        <Link href="/">Back to home</Link>
-      </Button>
-    </div>
+    <section className="bg-surface">
+      <div className="mx-auto max-w-6xl space-y-6 px-5 py-16 md:px-8 md:py-24">
+        <p className="text-xs font-bold uppercase tracking-[0.18em]">Efflux</p>
+        <h1 className="max-w-[20ch] text-3xl leading-tight md:text-5xl">There is no page at this address.</h1>
+        <p className="max-w-[60ch] text-lg">The story, the simulator and the notes are all one click away.</p>
+        <Button asChild variant="outline">
+          <Link href="/">Back to Efflux</Link>
+        </Button>
+      </div>
+    </section>
   );
 }
