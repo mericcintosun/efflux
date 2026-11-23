@@ -1,31 +1,28 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { loadExitBundle } from "@/lib/cmc";
-import type { Platform } from "@/lib/data";
+import { getAdapter } from "@/lib/adapter";
+import type { ApiEnvelope, Platform, TokenSnapshot } from "@/lib/types";
 
 // GET /api/exit?platform=base&address=0x...
-// Server-side proxy to the CoinMarketCap DEX API. The browser never talks to CMC
+// Reads one token through the adapter seam. With ADAPTER_MODE=real this is a
+// server-side proxy to the CoinMarketCap DEX API: the browser never talks to CMC
 // directly, which sidesteps CORS and keeps an optional API key on the server.
+// With the default ADAPTER_MODE=fake it answers from the seed tokens.
 
 const PLATFORMS: Platform[] = ["base", "bsc", "solana"];
 const ADDRESS = /^[A-Za-z0-9]{32,64}$/;
+
+function badRequest(message: string) {
+  const body: ApiEnvelope<TokenSnapshot> = { source: "none", data: null, proof: [], message };
+  return NextResponse.json(body, { status: 400 });
+}
 
 export async function GET(req: NextRequest) {
   const platform = req.nextUrl.searchParams.get("platform") as Platform | null;
   const address = (req.nextUrl.searchParams.get("address") ?? "").trim();
 
-  if (!platform || !PLATFORMS.includes(platform)) {
-    return NextResponse.json(
-      { source: "none", token: null, proof: [], message: "Pick Base, BNB Chain or Solana." },
-      { status: 400 }
-    );
-  }
-  if (!ADDRESS.test(address)) {
-    return NextResponse.json(
-      { source: "none", token: null, proof: [], message: "That does not look like a token address." },
-      { status: 400 }
-    );
-  }
+  if (!platform || !PLATFORMS.includes(platform)) return badRequest("Pick Base, BNB Chain or Solana.");
+  if (!ADDRESS.test(address)) return badRequest("That does not look like a token address.");
 
-  const bundle = await loadExitBundle(platform, address);
-  return NextResponse.json(bundle, { status: bundle.token ? 200 : 404 });
+  const envelope = await getAdapter().lookup(platform, address);
+  return NextResponse.json(envelope, { status: envelope.data ? 200 : 404 });
 }

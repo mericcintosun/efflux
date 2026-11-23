@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ExitStage, type ExitControls } from "@/components/exit-stage";
-import { DEFAULT_HOLDING_USD, type TokenSnapshot } from "@/lib/data";
+import { DEFAULT_HOLDING_USD } from "@/lib/data";
+import type { TokenSnapshot } from "@/lib/types";
 import { exitQuote, fmtUsd, type ExitResult } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
 
@@ -48,9 +49,27 @@ const CHAPTERS: Chapter[] = [
 
 /**
  * Story-scroll (structure S6): one sticky live ExitStage, four chapter bands
- * scrolling under it. The active chapter sets the stage state from the seed token.
+ * scrolling under it. The active chapter sets the stage state from the first
+ * token the page received through the adapter.
  */
-export function StoryScroll({ token }: { token: TokenSnapshot }) {
+export function StoryScroll({ tokens }: { tokens: TokenSnapshot[] }) {
+  const token = tokens[0];
+  if (!token) {
+    return (
+      <section aria-label="The story of one exit" className="bg-surface">
+        <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
+          <h2 className="max-w-[24ch] text-2xl leading-tight md:text-4xl">No sample token is loaded, so the story has nothing to sell yet.</h2>
+          <Button asChild size="lg" className="mt-10">
+            <Link href="/play">Open the simulator</Link>
+          </Button>
+        </div>
+      </section>
+    );
+  }
+  return <StoryChapters token={token} />;
+}
+
+function StoryChapters({ token }: { token: TokenSnapshot }) {
   const sellers = useMemo(() => exitQuote({ token, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: false, applyDrain: false }).sellers.length, [token]);
   const [active, setActive] = useState(0);
   const [controls, setControls] = useState<ExitControls>(() => CHAPTERS[0].preset!(sellers));

@@ -3,7 +3,7 @@
 import { useId, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import type { TokenSnapshot } from "@/lib/data";
+import type { TokenSnapshot } from "@/lib/types";
 import { exitQuote, fmtPct, fmtUsd, type ExitResult } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +59,7 @@ export function ExitStage({ token, holdingUsd, excluded, ahead, applyTax, applyD
         </p>
       </div>
 
-      <div className={cn(compact && "hidden md:block")}>
+      <div className={cn("overflow-x-auto", compact && "hidden md:block")}>
         <ExitCurve q={q} />
       </div>
 

@@ -1,14 +1,22 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PoolSceneFrame } from "@/components/pool-scene-frame";
 import { SceneSlot } from "@/components/scene-slot";
 import { StoryScroll } from "@/components/story-scroll";
-import { tokens } from "@/lib/data";
+import { getAdapter } from "@/lib/adapter";
+
+export const metadata: Metadata = {
+  title: "Story: what selling your DEX token actually pays",
+};
 
 // Home route: L5 bands. Full-width bands alternate ground and surface, each one
 // sentence plus one artifact; the "Your turn" chapter inside StoryScroll is the
 // CTA band. No columns inside a band, no cards inside a band.
-export default function Home() {
-  const story = tokens[0];
+// Tokens arrive through the adapter seam (ADAPTER_MODE), never from a seed import.
+export default async function Home() {
+  const { data } = await getAdapter().listTokens();
+  const list = data ?? [];
+  const story = list[0];
 
   return (
     <>
@@ -24,7 +32,18 @@ export default function Home() {
             </p>
           </div>
           <div className="mt-12">
-            <PoolSceneFrame token={story} />
+            {story ? (
+              <PoolSceneFrame token={story} />
+            ) : (
+              <div className="max-w-4xl">
+                <SceneSlot
+                  n={1}
+                  alt="A magenta liquidity pool with a line of ink holder blocks waiting beside it"
+                  width={960}
+                  height={640}
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -46,7 +65,7 @@ export default function Home() {
         </div>
       </section>
 
-      <StoryScroll token={story} />
+      <StoryScroll tokens={list} />
 
       <section className="bg-background">
         <div className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">

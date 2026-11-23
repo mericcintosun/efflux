@@ -3,12 +3,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SceneSlot } from "@/components/scene-slot";
+import { getAdapter } from "@/lib/adapter";
 import { CMC_ENDPOINTS } from "@/lib/cmc";
-import { DEFAULT_HOLDING_USD, tokens } from "@/lib/data";
+import { DEFAULT_HOLDING_USD, type TokenSnapshot } from "@/lib/data";
 import { exitQuote, fmtUsd, totalLiquidityUsd, fmtCompactUsd } from "@/lib/simulate";
 
 export const metadata: Metadata = {
-  title: "Method and endpoints",
+  title: "Notes",
   description: "How Efflux turns CoinMarketCap DEX pools, holders, sell tax and LP changes into one exit number, with the endpoints it calls.",
 };
 
@@ -22,11 +23,23 @@ const REQUEST_EXAMPLE = `const res = await fetch(
 );
 const holders = await res.json(); // no API key on this path`;
 
-export default function NotesPage() {
-  const t = tokens[0];
+function WorkedExample({ t }: { t: TokenSnapshot }) {
   const plain = exitQuote({ token: t, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: false, applyDrain: false });
   const cuts = exitQuote({ token: t, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: true, applyDrain: true });
   const queue = exitQuote({ token: t, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 10, applyTax: true, applyDrain: true });
+  return (
+    <p>
+      Worked example with the {t.symbol} snapshot ({t.pools.length} pools, {fmtCompactUsd(totalLiquidityUsd(t))} of liquidity):
+      a {fmtUsd(DEFAULT_HOLDING_USD)} position pays {fmtUsd(plain.receiveUsd)} on price impact alone. With the{" "}
+      {t.sellTaxPct}% sell tax and a repeat of the {Math.abs(t.lpChange24hPct)}% LP drain it pays {fmtUsd(cuts.receiveUsd)}.
+      After the {queue.walletsAhead} largest wallets sell first, it pays {fmtUsd(queue.receiveUsd)}.
+    </p>
+  );
+}
+
+export default async function NotesPage() {
+  const { data } = await getAdapter().listTokens();
+  const t = data?.[0];
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-14 md:px-8 md:py-20">
@@ -49,12 +62,7 @@ export default function NotesPage() {
             order goes last. Sell tax is taken from every seller&apos;s tokens before the swap, and the LP drain scenario shrinks
             every pool by the share of liquidity that left in the last 24 hours.
           </p>
-          <p>
-            Worked example with the {t.symbol} snapshot ({t.pools.length} pools, {fmtCompactUsd(totalLiquidityUsd(t))} of liquidity):
-            a {fmtUsd(DEFAULT_HOLDING_USD)} position pays {fmtUsd(plain.receiveUsd)} on price impact alone. With the{" "}
-            {t.sellTaxPct}% sell tax and a repeat of the {Math.abs(t.lpChange24hPct)}% LP drain it pays {fmtUsd(cuts.receiveUsd)}.
-            After the {queue.walletsAhead} largest wallets sell first, it pays {fmtUsd(queue.receiveUsd)}.
-          </p>
+          {t ? <WorkedExample t={t} /> : <p>No sample token is loaded, so the worked example is skipped.</p>}
         </div>
       </section>
 
@@ -79,7 +87,9 @@ export default function NotesPage() {
             <CardDescription>The holders request, as lib/cmc.ts sends it through our server route.</CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="overflow-auto whitespace-pre bg-background p-4 font-sans text-xs leading-relaxed">{REQUEST_EXAMPLE}</pre>
+            <div className="overflow-x-auto">
+              <pre className="whitespace-pre bg-background p-4 font-sans text-xs leading-relaxed">{REQUEST_EXAMPLE}</pre>
+            </div>
             <p className="mt-4 text-sm">
               The raw response for any token you load sits in the proof drawer on the{" "}
               <Link href="/play" className="font-semibold underline decoration-primary decoration-2 underline-offset-4">

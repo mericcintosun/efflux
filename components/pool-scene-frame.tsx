@@ -4,7 +4,8 @@ import dynamic from "next/dynamic";
 import { Component, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { SceneSlot } from "@/components/scene-slot";
-import { DEFAULT_HOLDING_USD, PLATFORM_LABEL, type TokenSnapshot } from "@/lib/data";
+import { DEFAULT_HOLDING_USD, PLATFORM_LABEL } from "@/lib/data";
+import type { TokenSnapshot } from "@/lib/types";
 import { exitQuote, fmtCompactUsd, fmtUsd, totalLiquidityUsd } from "@/lib/simulate";
 import type { ScenePalette } from "@/components/pool-scene";
 

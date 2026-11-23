@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { PlayDesk, type PlayInitial } from "@/components/play-desk";
-import { DEFAULT_HOLDING_USD, findToken, tokens, type Platform } from "@/lib/data";
+import { getAdapter } from "@/lib/adapter";
+import { DEFAULT_HOLDING_USD, type Platform } from "@/lib/data";
 
 export const metadata: Metadata = {
-  title: "Exit simulator",
+  title: "Simulator",
   description: "Paste a Base, BNB Chain or Solana token and see what a sale pays after price impact, sell tax, LP drain and the whales ahead of you.",
 };
 
@@ -22,9 +23,12 @@ function clampNumber(v: string | undefined, fallback: number, min: number, max: 
 // URL by "Copy a link to this result", so a shared link reopens the same exit.
 export default async function PlayPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
+  const { data, source } = await getAdapter().listTokens();
+  const samples = data ?? [];
+  const wanted = (one(sp.token) ?? "").toLowerCase();
   const platform = one(sp.platform);
   const initial: PlayInitial = {
-    slug: findToken(one(sp.token))?.slug ?? tokens[0].slug,
+    slug: samples.find((t) => t.slug === wanted)?.slug ?? samples[0]?.slug ?? "",
     holdingUsd: clampNumber(one(sp.usd), DEFAULT_HOLDING_USD, 1, 10_000_000),
     ahead: clampNumber(one(sp.ahead), 0, 0, 10),
     applyTax: one(sp.tax) !== "0",
@@ -41,7 +45,7 @@ export default async function PlayPage({ searchParams }: { searchParams: SearchP
         then sells yours, and tells you what arrives.
       </p>
       <div className="mt-12">
-        <PlayDesk initial={initial} />
+        <PlayDesk initial={initial} samples={samples} samplesSource={source} />
       </div>
     </div>
   );
