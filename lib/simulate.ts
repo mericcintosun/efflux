@@ -261,6 +261,16 @@ export function fmtPct(frac: number): string {
   return `${(frac * 100).toFixed(frac < 0.1 ? 1 : 0)}%`;
 }
 
+/**
+ * A value that is already a percent (sell tax, 24h LP change, share of supply),
+ * rounded to one decimal for display: -14.08321 prints "-14.1%". Display only;
+ * the model keeps the full value. Never prints "-0.0%".
+ */
+export function fmtPctValue(pct: number): string {
+  const r = Math.round(pct * 10) / 10;
+  return `${(Object.is(r, -0) ? 0 : r).toFixed(1)}%`;
+}
+
 export function shortAddress(a: string): string {
   return a.length > 12 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a;
 }

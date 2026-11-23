@@ -10,7 +10,7 @@ import { ExitStage, type ExitControls } from "@/components/exit-stage";
 import { PLATFORM_LABEL, SOURCE_LABEL } from "@/lib/data";
 import { isErrorBody, type ErrorCode } from "@/lib/errors";
 import type { ApiEnvelope, ApiProof, DataSource, Platform, TokenSnapshot } from "@/lib/types";
-import { NON_SELLER_TAGS, eligibleSellers, fmtCompactUsd, fmtTokens, shortAddress, totalLiquidityUsd } from "@/lib/simulate";
+import { NON_SELLER_TAGS, eligibleSellers, fmtCompactUsd, fmtPctValue, fmtTokens, shortAddress, totalLiquidityUsd } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
 
 export interface PlayInitial {
@@ -420,7 +420,7 @@ export function PlayDesk({
                             {fmtTokens(h.balance)} {token.symbol}
                           </span>
                           <span className="tabular-nums text-muted-foreground">
-                            {((h.balance / Math.max(token.supply, 1)) * 100).toFixed(1)}% of supply
+                            {fmtPctValue((h.balance / Math.max(token.supply, 1)) * 100)} of supply
                           </span>
                           <span className="flex flex-wrap gap-1">
                             {h.tags.map((t) => (

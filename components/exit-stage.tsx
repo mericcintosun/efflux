@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Fold } from "@/components/ui/fold";
 import { Slider } from "@/components/ui/slider";
 import type { TokenSnapshot } from "@/lib/types";
-import { exitQuote, fmtPct, fmtUsd, type ExitResult } from "@/lib/simulate";
+import { exitQuote, fmtPct, fmtPctValue, fmtUsd, type ExitResult } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
 
 export interface ExitControls {
@@ -67,7 +67,7 @@ export function ExitStage({
         disabled={token.sellTaxPct <= 0}
         onClick={() => onChange({ applyTax: !applyTax })}
       >
-        {token.sellTaxPct > 0 ? `Sell tax ${token.sellTaxPct}%` : "No sell tax"}
+        {token.sellTaxPct > 0 ? `Sell tax ${fmtPctValue(token.sellTaxPct)}` : "No sell tax"}
       </Button>
       <Button
         size="sm"
@@ -77,7 +77,7 @@ export function ExitStage({
         disabled={lp >= 0}
         onClick={() => onChange({ applyDrain: !applyDrain })}
       >
-        {lp < 0 ? `Assume tomorrow repeats the last 24 hours (LP moved ${lp}%)` : "LP did not shrink in 24 hours"}
+        {lp < 0 ? `Assume tomorrow repeats the last 24 hours (LP moved ${fmtPctValue(lp)})` : "LP did not shrink in 24 hours"}
       </Button>
     </div>
   );
@@ -139,14 +139,12 @@ export function ExitStage({
         ) : null}
         {compact ? (
           <>
-            {/* Under 640 px the legend and the two switches fold away so the panel stays short. */}
-            <Fold className="sm:hidden" summary="Where the gap goes, sell tax and LP drain">
-              <div className="space-y-3">
-                <LossLegend q={q} token={token} ahead={ahead} />
-                {switches}
-              </div>
+            {/* Under 640 px the legend folds away so the panel stays short. The two switches render once,
+                so "No sell tax" and the LP line are never printed twice. */}
+            <Fold className="sm:hidden" summary="Where the gap goes">
+              <LossLegend q={q} token={token} ahead={ahead} />
             </Fold>
-            <div className="hidden sm:block">{switches}</div>
+            {switches}
           </>
         ) : (
           switches
@@ -203,7 +201,7 @@ function lossParts(q: ExitResult, token: TokenSnapshot, ahead: number) {
   return [
     { key: "receive", label: "You receive", usd: q.receiveUsd, swatch: "bg-primary" },
     { key: "impact", label: "Price impact", usd: q.breakdown.impactUsd, swatch: "bg-foreground" },
-    { key: "tax", label: `Sell tax ${token.sellTaxPct}%`, usd: q.breakdown.taxUsd, swatch: "bg-foreground/60" },
+    { key: "tax", label: `Sell tax ${fmtPctValue(token.sellTaxPct)}`, usd: q.breakdown.taxUsd, swatch: "bg-foreground/60" },
     { key: "drain", label: "LP drain", usd: q.breakdown.drainUsd, swatch: "bg-foreground/30" },
     { key: "queue", label: `${ahead} wallets first`, usd: q.breakdown.queueUsd, swatch: "bg-line" },
   ].filter((p) => p.usd >= 0.5);

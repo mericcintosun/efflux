@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExitStage, type ExitControls } from "@/components/exit-stage";
 import { PoolSceneFrame } from "@/components/pool-scene-frame";
 import type { PoolView } from "@/components/pool-scene";
 import { EmptyState } from "@/components/route-states";
-import { DEFAULT_HOLDING_USD, SOURCE_LABEL } from "@/lib/data";
-import type { DataSource, TokenSnapshot } from "@/lib/types";
-import { exitQuote, fmtUsd, type ExitResult } from "@/lib/simulate";
+import { DEFAULT_HOLDING_USD } from "@/lib/data";
+import type { TokenSnapshot } from "@/lib/types";
+import { exitQuote, fmtPctValue, fmtUsd, type ExitResult } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
 
 interface Chapter {
@@ -34,7 +33,7 @@ const CHAPTERS: Chapter[] = [
     label: "Hidden cuts",
     preset: () => ({ ahead: 0, applyTax: true, applyDrain: true }),
     line: (q, t) =>
-      `Add the ${t.sellTaxPct}% sell tax and assume tomorrow loses another ${Math.abs(t.lpChange24hPct)}% of liquidity, like the last 24 hours did: ${fmtUsd(q.receiveUsd)}.`,
+      `Add the ${fmtPctValue(t.sellTaxPct)} sell tax and assume tomorrow loses another ${fmtPctValue(Math.abs(t.lpChange24hPct))} of liquidity, like the last 24 hours did: ${fmtUsd(q.receiveUsd)}.`,
   },
   {
     id: "queue",
@@ -59,7 +58,7 @@ const CHAPTERS: Chapter[] = [
  * panel's slider and switches (signature 2) and the camera follows the chapter
  * (signature 3). `intro` is the server-rendered hero copy.
  */
-export function StoryScroll({ tokens, source = "fake", intro }: { tokens: TokenSnapshot[]; source?: DataSource; intro: ReactNode }) {
+export function StoryScroll({ tokens, intro }: { tokens: TokenSnapshot[]; intro: ReactNode }) {
   const token = tokens[0];
   if (!token) {
     return (
@@ -77,10 +76,10 @@ export function StoryScroll({ tokens, source = "fake", intro }: { tokens: TokenS
       </section>
     );
   }
-  return <StoryChapters token={token} source={source} intro={intro} />;
+  return <StoryChapters token={token} intro={intro} />;
 }
 
-function StoryChapters({ token, source, intro }: { token: TokenSnapshot; source: DataSource; intro: ReactNode }) {
+function StoryChapters({ token, intro }: { token: TokenSnapshot; intro: ReactNode }) {
   const sellers = useMemo(() => exitQuote({ token, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: false, applyDrain: false }).sellers.length, [token]);
   const [active, setActive] = useState(0);
   // The one state object behind the live component: ExitStage and the pool both read and write it.
@@ -158,11 +157,9 @@ function StoryChapters({ token, source, intro }: { token: TokenSnapshot; source:
                   ))}
                 </ol>
               </nav>
-              <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <Badge variant={source === "live" ? "ok" : "secondary"}>{SOURCE_LABEL[source]}</Badge>
-                <span className="hidden sm:inline">
-                  {token.symbol}, {token.pools.length} pools, {token.holders.length} holders.
-                </span>
+              {/* The source note with its fetch time sits under the hero (app/page.tsx), in the first viewport. */}
+              <p className="mb-3 hidden text-xs text-muted-foreground sm:block">
+                {token.symbol}, {token.pools.length} pools, {token.holders.length} holders.
               </p>
               <ExitStage compact token={token} holdingUsd={DEFAULT_HOLDING_USD} {...controls} onChange={update} />
             </div>

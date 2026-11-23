@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/route-states";
 import type { TokenSnapshot } from "@/lib/types";
-import { cutsWaterfall, fmtUsd, type CutKey, type ExitResult } from "@/lib/simulate";
+import { cutsWaterfall, fmtPctValue, fmtUsd, type CutKey, type ExitResult } from "@/lib/simulate";
 import { cn } from "@/lib/utils";
 
 interface CutsWaterfallProps {
@@ -62,11 +62,11 @@ export function CutsWaterfall({ q, token, applyTax, applyDrain, onEmptyAction, o
   const lp = token.lpChange24hPct;
   const label: Record<CutKey, string> = {
     impact: "Price impact",
-    tax: token.sellTaxPct > 0 ? (applyTax ? `Sell tax ${token.sellTaxPct}%` : "Sell tax (switched off)") : "Sell tax (none on this token)",
+    tax: token.sellTaxPct > 0 ? (applyTax ? `Sell tax ${fmtPctValue(token.sellTaxPct)}` : "Sell tax (switched off)") : "Sell tax (none on this token)",
     drain:
       lp < 0
         ? applyDrain
-          ? `24h LP drain, tomorrow repeats the last ${Math.abs(lp)}%`
+          ? `24h LP drain, tomorrow repeats the last ${fmtPctValue(Math.abs(lp))}`
           : "24h LP drain (repeat tomorrow is off)"
         : "24h LP drain (liquidity did not shrink)",
     queue: q.walletsAhead > 0 ? `${q.walletsAhead} wallets sell before you` : "Queue (nobody sells before you)",
