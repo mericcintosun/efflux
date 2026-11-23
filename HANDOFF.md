@@ -596,6 +596,108 @@ Runner: build, test, redeploy. Then spot-check the landing note, `/play` "LP mov
 | B2 | `git rm --cached` command | left to the builder | See "Left to the builder". |
 | B3 | Team names and eligibility | left to the builder | Phase 5 manual submit checklist items 1 and 2. |
 
+## Phase 7 log (second jury fixes and freeze)
+
+### Goal
+
+Apply what the second panel (overall 6.3, fix-then-submit, 0 regressions) still found, then freeze the code. No new demo step, no new route, dependency or module; `package.json` unchanged.
+
+### Status
+
+Slices 0, A, B, C, D and E written by file editing only. Nothing was cut. Build, tests and `npm run proof` are unverified until the runner runs them. This is the last code phase: after the runner's redeploy the code is FROZEN.
+
+### Round 2 triage
+
+| Rank | Finding | Class | Surface | Owner |
+| --- | --- | --- | --- | --- |
+| 1 | #BuildwithCMC X post and form | REPEAT | submission-text | handled by the farm / builder, no task |
+| 2 | Real API call proof response and live-vs-seed evidence | REPEAT | readme | slice A |
+| 3 | `.farm-*` leftovers, retry wording, search row | REPEAT | code | slice B |
+| 4 | Live BRETT paragraph, "selling now keeps X%", stress-test sentence | NEW | readme | slice C |
+| 5 | DEMO.md steps 3 and 4 order | NEW | readme | slice D |
+| 6 | "Checked against a real swap" table | NEW | readme | declined: bottom half of the ranking, needs aggregator quotes only a live call can produce, feature-shaped. The CLMM caveat already sits on `/notes` and in README "How the number is built". |
+
+### Round 2 ledger
+
+| Rank | Outcome | Evidence |
+| --- | --- | --- |
+| 0 re-check | partly already resolved | Already resolved: README retry sentence (`README.md`, rate limits bullet and Tech stack) matches `lib/cmc.ts:8` to `:10` and `:103` to `:124`; README search row "not live: wrapper exists" matches `CMC_ENDPOINTS` (`lib/cmc.ts:61`, `live: false`) and `/notes`. SUBMISSION.md had no "exponential" or "backoff" and no Recharts (Grep, before and after). Still open before this phase: `SUBMISSION.md:40` "planned for the search box", the hypothetical $300,000 pool in README "The problem" (it was never in SUBMISSION.md), no `.farm-*` rule in `.gitignore`. |
+| 1 | handled by the farm / left to the builder, no task | X post with #BuildwithCMC linking the BUIDL page and the video; post URL in the form. |
+| 2 | applied | `scripts/proof.mjs` `holdersSampleBlock()` writes the `holders-sample` block (status, ms, UTC fetch time, first 2 holder records of the real `POST /public-api/v1/dex/holders/list` response as JSON, or one "Not run in this build: <reason>" line) into README.md (under "Live demo:") and SUBMISSION.md ("Real API call proof"). The "Response: the README section ..." sentence is gone. Live link uses the format `copyLink` writes for a lookup (`components/play-desk.tsx:213` to `:215`, `platform` plus `address`, parsed by `playQuerySchema` `lib/schemas.ts:46` to `:51`): `/play?platform=base&address=0x532f...42E4`. README names the source note under the hero; no claim about the Vercel mode was written. |
+| 3 | applied | `.gitignore` `.farm-*` (keeps `public/__farm.txt`, `.env*`, `!.env.example`). SUBMISSION.md search row: "wrapper exists in `lib/cmc.ts`, not called at runtime yet". SUBMISSION.md pushback sentence now reads "8 s timeout, one retry after 600 ms on 429, network error or timeout, and a 60 s cache". `git rm --cached` is under "Left to the builder". |
+| 4 | applied | README "The problem" and SUBMISSION.md "Description": `brett-exit` PROOF block written by `brettExitBlock()` in `scripts/proof.mjs`, which imports `exitQuote()` from `lib/simulate.ts` and the pickers from `lib/cmc-parse.ts` (both have only `import type` imports, so Node type stripping loads them). No model code was duplicated. On a Node without type stripping, or when the holders call fails, the block writes one "Not run" line. Static sentence "Read 0 as today and 10 as the worst case; the queue slider is a stress test, not a forecast." in both files. |
+| 5 | applied | `DEMO.md`: step 3 "Hidden cuts", step 4 "The queue" (wow moment, last `/` step), "jump back" sentence deleted, header "Wow moment (step 4)". Page order confirmed in `components/story-scroll.tsx:25`, `:32`, `:39`, `:46` (quote, cuts, queue, yours). README "DEMO.md step 4" and the bounty table steps "2, 4, 6" follow the new numbers. |
+| 6 | declined | See triage. |
+
+### Phase 6 fix verdicts
+
+| Fix | Verdict | Evidence |
+| --- | --- | --- |
+| R3e SUBMISSION search row | re-done | `SUBMISSION.md` endpoint list, search row (slice B). |
+| R5a rounded LP percentage | held | `components/exit-stage.tsx:80` `fmtPctValue(lp)`; also `cuts-waterfall.tsx:65`, `:69`, `play-desk.tsx:423`, `story-scroll.tsx:36`, `app/notes/page.tsx:37`. |
+| R5b single switch line | held | `components/exit-stage.tsx:70`, `:80` render once; comment at `:143`. |
+| R6a timestamped source note | held | `app/page.tsx:30` `SourceNote`. |
+| R6b same BRETT on `/` and `/play` | held | `app/page.tsx:51` `await connection()`. |
+| R6c CTA wording | held | `app/page.tsx:138`. |
+| `.gitignore` additions | held, extended | `.farm-scaffold.json`, `.farm-delta.md`, `public/__farm.txt` still present, `.farm-*` added. |
+| Retry wording | held | README and `lib/cmc.ts:8`; SUBMISSION.md now matches too. |
+| README claims (5 live endpoints, tests list) | held | README endpoint table and "Run the checks with `npm test`" lines untouched. |
+
+### couldNotVerify and strongestObjection
+
+- Deploy mode live vs seed: the source note under the hero states the mode at runtime (`app/page.tsx:30`); the check is the builder's (below).
+- MOSS button: `lib/config.ts` `DEMO_TOKENS.bsc` is null without `EFFLUX_DEMO_BSC_ADDRESS`, so the seed serves; `.env.example:24` to `:26`, DEMO.md "Data modes" and SUBMISSION.md "Known gaps" say so.
+- Track name "Markets and Trading Tools": not verifiable from the repo, left to the builder.
+- 429 under concurrent judges: live only; `lib/cmc.ts:121` one retry, then seed fallback with the "Bundled snapshot" note.
+- Recharts: not in `package.json`; no claim anywhere (Grep).
+- Swap-quote objection: declined; caveat in README and `/notes`.
+- Stale QA scan: runner's job after redeploy.
+
+### Decisions
+
+- `holders-sample` is the same block in README.md and SUBMISSION.md (short: two records), so one marker name covers both files.
+- The live link uses `platform` plus `address`, not `token=base-0x532f2710`: the slug form only matches a sample loaded live, while the address form resolves on the server in real mode and is what `copyLink` writes after a lookup.
+- `brett-exit` uses the `/play` defaults: $5,000, sell tax on, LP drain off.
+- Known gaps went into SUBMISSION.md as a new section; README already carries the CLMM and search lines.
+
+### Failed attempts
+
+None.
+
+### Files changed
+
+`scripts/proof.mjs`, `README.md`, `SUBMISSION.md`, `.gitignore`, `DEMO.md`, `HANDOFF.md`, `.farm-commits.json`. `.env.example` checked, unchanged (every `process.env` name in `lib/config.ts`, `lib/adapter.ts`, `lib/brand-files.ts` is listed). No `app/` or `components/` edit.
+
+### Commands run
+
+None, no command access.
+
+### Unmet or unverified items (evidence)
+
+- The `holders-sample` and `brett-exit` blocks hold a "Not run in this build" placeholder until `npm run proof` runs. The last recorded proof (README `cmc-call`, `demo-timing`) shows the holders POST returning 400, so both blocks may stay "Not run" with that reason: `brettExitBlock()` stops on a failed holders call rather than print a queue of zero.
+- `brettExitBlock()` needs Node 22.18 or newer (type stripping on by default) to import `lib/simulate.ts`; `package.json` `proof` is plain `node scripts/proof.mjs` and was left unchanged. On older Node the block says so.
+- DEMO.md wow figure "$3,870 toward a few hundred dollars" is still for the seed token, not recomputed.
+- Everything that needs a command: build, `npm test`, `npm run proof`, the redeploy checks.
+
+### Open questions
+
+- Holders POST 400 (parked since Phase 4): the body CoinMarketCap expects is still unknown.
+- Carry an "LP change unknown" state (type change to `TokenSnapshot.lpChange24hPct`)? Left as a known gap.
+
+### Left to the builder
+
+- Run once: `git rm --cached .farm-delta.md .farm-scaffold.json public/__farm.txt .farm-live.json`, commit, redeploy, and check `/__farm.txt` returns 404. Do not delete `.farm-live.json` or IDENTITY.md from disk.
+- After redeploy, open the landing page and read the note under the hero: "Live from CoinMarketCap, BRETT on Base, fetched HH:MM UTC" means live; "Bundled snapshot" or "Seed data" means not.
+- #BuildwithCMC X post linking the DoraHacks BUIDL page and the video; post URL, video link, exact track name, team and eligibility in the form.
+
+### Next best step (builder submission checklist)
+
+1. Runner: `npm install`, `npm run build`, `npm test`, `npm run proof`; commit the rewritten PROOF blocks.
+2. Run the `git rm --cached` line above, redeploy, confirm `/__farm.txt` is 404.
+3. Read the landing source note; click one sample per chain; open the `/play` proof drawer.
+4. Closing commit `faz-7:`, tag `v0.1-hackathon`. Code frozen.
+5. X post, form fields from `SUBMISSION.md`, video link, track, team, eligibility.
+
 ## 5. Definition of done
 
 - Deployed at https://efflux.vercel.app on live keyless CMC data, all three demo tokens loading on the live URL.
