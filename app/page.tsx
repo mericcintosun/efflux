@@ -1,19 +1,46 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SceneSlot } from "@/components/scene-slot";
 import { StoryScroll } from "@/components/story-scroll";
 import { CMC_ENDPOINTS, getAdapter } from "@/lib/adapter";
-import { DEFAULT_HOLDING_USD } from "@/lib/data";
+import { DEFAULT_HOLDING_USD, PLATFORM_LABEL, SOURCE_LABEL, type DataSource, type TokenSnapshot } from "@/lib/data";
 import { exitQuote, fmtCompactUsd, fmtPct, fmtUsd, totalLiquidityUsd } from "@/lib/simulate";
 
 export const metadata: Metadata = {
   title: "Story: what your token really pays",
 };
 
-// No searchParams here, so the story is an ISR page: the demo token list is
-// rebuilt at most once a minute, matching the 60 s CoinMarketCap cache.
-export const revalidate = 60;
+// Rendered per request, like /play: both routes resolve the story token through
+// the same getAdapter().listTokens() call and the same 60 s CoinMarketCap fetch
+// cache, so the landing never shows a build-time copy of BRETT while /play shows
+// a fresher one. connection() opts into request-time rendering without turning
+// the fetches into no-store (force-dynamic would), so the 60 s cache still holds.
+// The 4 s LIST_BUDGET_MS in lib/config.ts bounds the wait.
+
+/** "14:05 UTC" from the bundle's own fetch time (snapshotAt), never from the render clock. */
+function utcClock(iso: string): string | null {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : `${d.toISOString().slice(11, 16)} UTC`;
+}
+
+/** The source note under the hero: which data the story runs on, and when it was fetched. */
+function SourceNote({ source, token }: { source: DataSource; token?: TokenSnapshot }) {
+  const at = token ? utcClock(token.snapshotAt) : null;
+  const text =
+    source === "live" && token
+      ? `${SOURCE_LABEL.live}, ${token.symbol} on ${PLATFORM_LABEL[token.platform]}${at ? `, fetched ${at}` : ""}`
+      : SOURCE_LABEL[source];
+  return (
+    <p className="efflux-wipe mt-6 text-sm">
+      <Badge variant={source === "live" ? "ok" : "secondary"} className="whitespace-normal">
+        {text}
+      </Badge>
+    </p>
+  );
+}
 
 // Home route: L5 bands, full width, alternating GROUND, SURFACE and DEEP, each
 // one sentence plus one artifact. No columns and no cards inside a band, except
@@ -21,6 +48,7 @@ export const revalidate = 60;
 // 1 story (GROUND)  2 problem (SURFACE)  3 cuts (GROUND)  4 API (DEEP)  5 CTA (GROUND)
 // Tokens arrive through the adapter seam (ADAPTER_MODE), never from a seed import.
 export default async function Home() {
+  await connection();
   const { data, source } = await getAdapter().listTokens();
   const list = data ?? [];
   const story = list[0];
@@ -38,12 +66,13 @@ export default async function Home() {
         Efflux reads a token&apos;s real pools and biggest holders from the CoinMarketCap DEX API and works out what a sale pays
         today, and what is left if the whales get out first.
       </p>
+      <SourceNote source={source} token={story} />
     </div>
   );
 
   return (
     <>
-      <StoryScroll tokens={list} source={source} intro={intro} />
+      <StoryScroll tokens={list} intro={intro} />
 
       <section className="bg-surface" aria-labelledby="band-problem">
         <div className="mx-auto max-w-6xl px-5 py-20 md:px-8 md:py-28">
@@ -86,7 +115,7 @@ export default async function Home() {
             Every number comes from CoinMarketCap DEX endpoints, called without an API key.
           </h2>
           <ul className="efflux-wipe-view mt-12 space-y-3 font-display text-lg leading-snug md:text-2xl">
-            {CMC_ENDPOINTS.map((e) => (
+            {CMC_ENDPOINTS.filter((e) => e.live).map((e) => (
               <li key={e.path} className="break-all sm:break-normal">
                 <span className="text-muted-foreground">{e.method}</span> {e.path}
               </li>
@@ -106,7 +135,7 @@ export default async function Home() {
       <section className="bg-background" aria-labelledby="band-cta">
         <div className="mx-auto max-w-6xl px-5 py-20 md:px-8 md:py-28">
           <h2 id="band-cta" className="efflux-wipe-view max-w-[22ch] text-3xl leading-tight md:text-5xl">
-            Paste the token you hold and see what a sale pays before you press sell.
+            Open the simulator and paste the token you hold to see what a sale pays before you press sell.
           </h2>
           <Button asChild size="lg" className="mt-10 min-h-14 px-10 text-lg">
             <Link href="/play">Open the simulator</Link>
