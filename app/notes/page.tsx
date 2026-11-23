@@ -81,8 +81,8 @@ export default async function NotesPage() {
         ) : (
           <ul className="max-w-[80ch] divide-y divide-border">
             {endpoints.map((e) => (
-              <li key={e.path} className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">
-                <span className="min-w-[19rem] font-semibold">
+              <li key={e.path} className="flex flex-col gap-1 py-3 md:flex-row md:gap-6">
+                <span className="break-all font-semibold md:min-w-[19rem] md:break-normal">
                   {e.method} /public-api{e.path}
                 </span>
                 <span className="text-muted-foreground">{e.use}</span>
@@ -92,15 +92,16 @@ export default async function NotesPage() {
         )}
       </section>
 
-      <section className="mt-16 grid gap-8 lg:grid-cols-2">
-        <Card>
+      {/* grid-cols-1 is minmax(0, 1fr), so the code block scrolls inside its box instead of widening the page at 360 px. */}
+      <section className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>A real call, in code</CardTitle>
             <CardDescription>The holders request, as lib/cmc.ts sends it through our server route.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <pre className="whitespace-pre bg-background p-4 font-sans text-xs leading-relaxed">{REQUEST_EXAMPLE}</pre>
+            <div className="max-w-full overflow-x-auto bg-background">
+              <pre className="w-max min-w-full whitespace-pre p-4 font-sans text-xs leading-relaxed">{REQUEST_EXAMPLE}</pre>
             </div>
             <p className="mt-4 text-sm">
               The raw response for any token you load sits in the proof drawer on the{" "}
@@ -111,19 +112,20 @@ export default async function NotesPage() {
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
-            <CardTitle>What the API made possible, and where it pushed back</CardTitle>
+            <CardTitle>What the API made possible and where it pushed back</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">
             <p>
-              Possible: pools, holders, sell tax and liquidity history for three chains from one provider, with no key, which is why
-              the deployed site runs on live data.
+              Possible: pools, holders, sell tax and liquidity history for three chains from one provider, with no key, so the deployed
+              site runs on live data with zero secrets.
             </p>
             <p>
-              Pushback: pools expose liqUsd but no raw reserves, so reserves are reconstructed. Short field names such as a0, a1 and tu
-              in the liquidity change list are not described in the schema. The keyless tier shares one rate limit per IP, so the
-              server caches responses for 60 seconds, gives every call 8 seconds, and retries once on HTTP 429 or a timeout.
+              Pushback: pools expose liqUsd but no reserve field, so reserves are virtual: half of liqUsd per side. The holders
+              percent field does not say whether it is a fraction or a percent, so Efflux computes share of supply itself. The keyless
+              tier shares one rate limit per IP, so the server caches responses for 60 seconds, gives every call 8 seconds, and
+              retries once on HTTP 429 or a timeout.
             </p>
           </CardContent>
         </Card>
@@ -145,7 +147,7 @@ export default async function NotesPage() {
             height={640}
           />
         </div>
-        <Button asChild size="lg" className="mt-6">
+        <Button asChild size="lg" className="mt-6 min-h-11">
           <Link href="/play">Run your own token</Link>
         </Button>
       </section>

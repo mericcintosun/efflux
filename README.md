@@ -31,9 +31,23 @@ The four losses are computed as successive scenarios, so impact + tax + drain + 
 
 Concentrated liquidity pools (Uniswap v3, Raydium CLMM, Meteora DLMM, Orca) are modeled as constant product too. That understates their depth near the price, so the loss leans high for them, and the UI says so.
 
+## Bounty
+
+| Bounty | Prize | Slots | Required tech | Code file | DEMO step |
+| --- | --- | --- | --- | --- | --- |
+| Top 3 | Full year of CMC API access: Professional, Growth, and Startup (Top 3) | 3 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
+| Top 10 | Exclusive CMC Plushie (Top 10) | 10 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
+| Top 30 | Exclusive CMC Keyboard (Top 30) | 30 | CoinMarketCap API | `lib/cmc.ts` (calls via `loadExitBundle`; parsers in `lib/cmc-parse.ts`) | 2, 3, 6 |
+
+The three rows are slices of one judged ranking: a single submission is placed once, and its rank decides which prize it gets.
+
+**How deep the integration goes.** `lib/adapter.ts` imports `loadExitBundle` from `lib/cmc.ts` and is the only data seam for every page and route. Delete `lib/cmc.ts` and, in real mode (`ADAPTER_MODE=real`), DEMO.md steps 2, 3 and 6 break: the pools behind "A sale pays you", the holder queue behind the slider and every entry in the proof drawer come from it. In fake mode the demo still runs on seed tokens, and step 6 labels its drawer entries as seed data rather than live calls.
+
 ## How it uses the CoinMarketCap API
 
-Every call runs server-side in `lib/cmc.ts`, behind the route `GET /api/exit?platform=base&address=0x...`. By default it uses the **keyless public API**, so the deployed site works on live data with no key in the repo or in Vercel.
+Every call runs server-side in `lib/cmc.ts`, behind the route `GET /api/exit?platform=base&address=0x...`. By default it uses the **keyless public API**, so the deployed site works on live data with no key in the repo or in Vercel. A user lookup gets 4 seconds (`LOOKUP_BUDGET_MS` in `lib/config.ts`); a slower answer returns `upstream_timeout` with a "Try again" button, and the retry is usually served from the 60 s cache.
+
+The table lists exactly the paths `lib/cmc.ts` sends (`CMC_ENDPOINTS`, `loadExitBundle`, `holdersCall`, `searchTokens`); `/notes` renders the same list from `CMC_ENDPOINTS`.
 
 | Method | Endpoint | What Efflux takes from it |
 | --- | --- | --- |
@@ -63,7 +77,7 @@ Every request is recorded with method, URL, body, status, latency and the first 
 `scripts/proof.mjs` makes real keyless calls for the demo tokens and rewrites the two blocks below, plus the timing table under "Measured latency". When CoinMarketCap cannot be reached, it says so in one line instead of showing a response.
 
 <!-- PROOF:BEGIN cmc-call -->
-Captured by `npm run proof` at 2026-11-23T20:19:43.757Z, keyless host, no key header sent. First 600 characters of each response.
+Captured by `npm run proof` at 2026-11-23T20:30:26.367Z, keyless host, no key header sent. First 600 characters of each response.
 
 - Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
 
@@ -87,18 +101,20 @@ Keys seen in the real responses, checked against the candidate keys in `lib/cmc-
 The demo has a 5 second rule per step. `npm run proof` times the five calls the app makes for each demo token and rewrites the table below. In the app itself, the sample list gives each demo token 4 seconds (`LIST_BUDGET_MS` in `lib/config.ts`); a token that misses it is served from its seed snapshot and named in the source note.
 
 <!-- PROOF:BEGIN demo-timing -->
-Measured by `npm run proof` at 2026-11-23T20:19:43.757Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
+Measured by `npm run proof` at 2026-11-23T20:30:26.367Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
 
 | Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |
 | --- | --- | --- | --- | --- |
-| 0x532f...42E4 | base | 198 | 429, 429, 429, 429, 429 | yes |
-| DezXAZ...B263 | solana | 397 | 429, 429, 429, 429, 429 | yes |
+| 0x532f...42E4 | base | 204 | 429, 429, 429, 429, 429 | yes |
+| DezXAZ...B263 | solana | 194 | 429, 429, 429, 429, 429 | yes |
 <!-- PROOF:END demo-timing -->
 
-### What the API made possible, and where it pushed back
+### What the API made possible and where it pushed back
 
-- **Made possible:** pools, holders, sell tax and liquidity history for three chains from one provider, with no key. That is why the judged link runs on live data and keeps working after the hackathon tier expires.
-- **Pushed back:** pools give `liqUsd` but no raw reserves, so reserves are reconstructed from price. Some short fields (`a0`, `a1`, `tu` in the liquidity change list) are not described in the schema, and we could not confirm whether holder `percent` is a fraction or a percent. The keyless tier shares one rate limit per IP, so responses are cached for 60 seconds, every call is aborted after 8 seconds, and HTTP 429 or a timeout gets exactly one retry.
+- **Made possible: a zero-secret deploy.** The keyless public endpoints serve pools, holders, sell tax and liquidity history for Base, BNB Chain and Solana with no key, so the judged link runs on live data with nothing secret in the repo or in Vercel, and keeps working after the hackathon tier expires.
+- **Pushed back: no reserve field.** Pools carry `liqUsd` for both sides together but no raw reserves, so Efflux builds virtual reserves: `liqUsd / 2` dollars per side and `(liqUsd / 2) / price` tokens.
+- **Pushed back: an undocumented unit.** The holders `percent` field does not say whether 0.05 means 5% or 0.05%. Efflux ignores it and computes share of supply from `actualBalance` and the token supply. Short fields such as `a0`, `a1` and `tu` in the liquidity change list are not described either.
+- **Pushed back: shared rate limits.** Keyless limits are per IP, and serverless functions share IPs, so 429s happen. Every GET is cached 60 seconds, the holders POST is memoized for the same 60 seconds, every call is aborted after 8 seconds, and a 429 or a timeout gets exactly one retry.
 
 Optional: set `CMC_PRO_API_KEY` in Vercel and the same paths go to the keyed host. The key travels as a header and never appears in the proof drawer or the logs.
 
@@ -140,7 +156,7 @@ API errors come back as `{ "error": "<code>", "hint": "<sentence>" }` with codes
 ### Tests
 
 ```bash
-npm test        # vitest: exit math snapshot over the seed tokens, CMC parsers, input schemas
+npm test        # vitest: exit math snapshot, cuts waterfall sums, CMC parsers, input schemas
 npm run proof   # real keyless CoinMarketCap calls, written into the proof blocks above
 ```
 
@@ -149,8 +165,10 @@ The parser fixtures in `fixtures/cmc/` are hand-written to the OpenAPI field nam
 Routes:
 
 - `/` the story: four chapters drive one live exit panel, from a clean quote to the whale queue
-- `/play` the simulator: sample tokens, paste any address, share a link to the result
+- `/play` the simulator: sample tokens, paste any address, the hidden cuts as a waterfall, share a link to the result
 - `/notes` method, endpoint list, a real call and the API notes
+
+Security notes are in `SECURITY.md` (no contract, no wallet, no stored data). The submission checklist is `DELIVERY.md`.
 
 ## What we would build next
 
