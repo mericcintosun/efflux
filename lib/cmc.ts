@@ -52,13 +52,20 @@ export type { ApiProof, ExitBundle } from "@/lib/types";
  * `live: true` marks the 5 that loadExitBundle calls for every token; the search
  * wrapper is listed with `live: false` because the UI does not call it.
  */
+/**
+ * `note` is shown next to an endpoint on /notes when the last `npm run proof`
+ * (2026-11-24) saw the keyless host reject our request shape. Clear it once the
+ * proof line for that endpoint turns into a real 200.
+ */
+const KEYLESS_400 = "Called for every token; on 2026-11-24 the keyless host answered 400 (\"Parameter error\"), so this input is skipped for now.";
+
 export const CMC_ENDPOINTS = [
-  { method: "GET", path: "/v1/dex/token", live: true, use: "Price, symbol, name and supply of the token" },
-  { method: "GET", path: "/v1/dex/token/pools", live: true, use: "Every pool with liqUsd and both token sides, the input for virtual reserves" },
-  { method: "POST", path: "/v1/dex/holders/list", live: true, use: "Largest holders with balances and tags, the queue ahead of you" },
-  { method: "GET", path: "/v1/dex/security/detail", live: true, use: "Sell tax" },
-  { method: "GET", path: "/v1/dex/liquidity-change/list", live: true, use: "Liquidity added and removed, for the 24h LP drain" },
-  { method: "GET", path: "/v1/dex/search", live: false, use: "Token search by name or symbol: wrapper exists in lib/cmc.ts, not called by the live UI yet" },
+  { method: "GET", path: "/v1/dex/token", live: true, use: "Price, symbol, name and supply of the token", note: "" },
+  { method: "GET", path: "/v1/dex/token/pools", live: true, use: "Every pool with liqUsd and both token sides, the input for virtual reserves", note: "" },
+  { method: "POST", path: "/v1/dex/holders/list", live: true, use: "Largest holders with balances and tags, the queue ahead of you", note: KEYLESS_400 },
+  { method: "GET", path: "/v1/dex/security/detail", live: true, use: "Sell tax", note: KEYLESS_400 },
+  { method: "GET", path: "/v1/dex/liquidity-change/list", live: true, use: "Liquidity added and removed, for the 24h LP drain", note: "" },
+  { method: "GET", path: "/v1/dex/search", live: false, use: "Token search by name or symbol: wrapper exists in lib/cmc.ts, not called by the live UI yet", note: "" },
 ] as const;
 
 type CallResult = { ok: true; json: unknown } | { ok: false; code: ErrorCode; status?: number };

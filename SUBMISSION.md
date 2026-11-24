@@ -15,7 +15,7 @@ What selling a small DEX token pays today, and what is left after the biggest wa
 Your wallet shows price times balance, not what a sale would pay. On a real token, computed by `exitQuote()` over live CoinMarketCap data when `npm run proof` runs:
 
 <!-- PROOF:BEGIN brett-exit -->
-BRETT on Base, fetched 2026-11-24 10:28 UTC by `npm run proof`: wallet shows $5,000, a sale pays $4,953 now. Selling now keeps 99% of what your wallet shows.
+BRETT on Base, fetched 2026-11-24 10:33 UTC by `npm run proof`: wallet shows $5,000, a sale pays $4,953 now. Selling now keeps 99% of what your wallet shows.
 
 Computed by `exitQuote()` in `lib/simulate.ts` with the sell tax on (0.0%) and LP drain off, over 20 live pools. The holder queue is not shown in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list, body `{"address":"0x532f27101965dd16442E59d40670FaF5eBB142E4","platform":"base"}`), reason: "Parameter error".
 <!-- PROOF:END brett-exit -->
@@ -69,7 +69,7 @@ Same request, live: https://efflux-eight.vercel.app/play?platform=base&address=0
 
 ## What the API made possible and where it pushed back
 
-Made possible: pools, holders, sell tax and liquidity history for three chains from one provider with no key, so the judged link runs on live data with zero secrets. Pushed back: pools carry `liqUsd` but no reserve field, so Efflux builds virtual reserves (half of `liqUsd` per side); the holders `percent` field does not state its unit, so Efflux computes share of supply itself; keyless limits are shared per IP, so every call has an 8 s timeout, one retry after 600 ms on 429, network error or timeout, and a 60 s cache (the Next data cache for GETs, an in-process memo for the holders POST).
+Made possible: price, pools and liquidity history for three chains from one provider with no key, so the judged link runs on live data with zero secrets. Holders and sell tax sit on the same keyless host, but as of 2026-11-24 our request shape for them gets 400 ("Parameter error"), so the queue and sell tax steps stay at zero and say so. Pushed back: pools carry `liqUsd` but no reserve field, so Efflux builds virtual reserves (half of `liqUsd` per side); the holders `percent` field does not state its unit, so Efflux computes share of supply itself; keyless limits are shared per IP, so every call has an 8 s timeout, one retry after 600 ms on 429, network error or timeout, and a 60 s cache (the Next data cache for GETs, an in-process memo for the holders POST).
 
 ## Known gaps
 

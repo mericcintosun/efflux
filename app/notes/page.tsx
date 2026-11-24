@@ -119,7 +119,10 @@ export default async function NotesPage() {
                       <span className="break-all font-semibold md:min-w-[19rem] md:break-normal">
                         {e.method} /public-api{e.path}
                       </span>
-                      <span className="text-muted-foreground">{e.use}</span>
+                      <span className="text-muted-foreground">
+                        {e.use}
+                        {e.note ? <span className="mt-1 block text-sm">{e.note}</span> : null}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -144,12 +147,17 @@ export default async function NotesPage() {
       <section className="bg-surface" aria-label="A real call and the API notes">
         <div className={BAND}>
           <h2 className="efflux-wipe-view max-w-[24ch] text-2xl leading-tight md:text-4xl">
-            This is the holders request exactly as our server sends it, with no API key.
+            This is the holders request our server sends, with no API key.
           </h2>
           <div className="mt-8 max-w-3xl space-y-8">
             <div className="max-w-full overflow-x-auto bg-background">
               <pre className="w-max min-w-full whitespace-pre p-4 font-sans text-xs leading-relaxed">{REQUEST_EXAMPLE}</pre>
             </div>
+            <p className="max-w-[65ch] text-base text-muted-foreground">
+              On 2026-11-24 the keyless host answered this body with 400 (&quot;Parameter error&quot;), and also the same body
+              with the field named &quot;address&quot;, which the server tries once after a 400. Until a body is accepted, the
+              quote runs on live price and pools, and the queue and sell tax steps stay at zero and say so.
+            </p>
             <p className="max-w-[65ch] text-base">
               The raw response for any token you load sits in the proof drawer on the{" "}
               <Link href="/play" className="font-semibold underline decoration-primary decoration-2 underline-offset-4">
@@ -161,8 +169,9 @@ export default async function NotesPage() {
               <h3 className="font-display text-lg md:text-xl">What the API made possible and where it pushed back</h3>
               <div className="max-w-[65ch] space-y-3 text-base leading-relaxed">
                 <p>
-                  Possible: pools, holders, sell tax and liquidity history for three chains from one provider, with no key, so the
-                  deployed site runs on live data with zero secrets.
+                  Possible: price, pools and liquidity history for three chains from one provider, with no key, so the deployed
+                  site runs on live data with zero secrets. The holders and sell tax endpoints sit on the same keyless host, but
+                  our request shape for them is not accepted yet (see above).
                 </p>
                 <p>
                   Pushback: pools expose liqUsd but no reserve field, so reserves are virtual: half of liqUsd per side. The holders
