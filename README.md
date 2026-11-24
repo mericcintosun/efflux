@@ -28,7 +28,7 @@ People holding small tokens on Base, BNB Chain and Solana see a "value" in their
 Here is a real token instead of a made-up pool. The figures below are computed by `exitQuote()` over live CoinMarketCap data each time `npm run proof` runs:
 
 <!-- PROOF:BEGIN brett-exit -->
-BRETT on Base, fetched 2026-11-24 11:09 UTC by `npm run proof`: wallet shows $5,000, a sale pays $4,953 now. Selling now keeps 99% of what your wallet shows.
+BRETT on Base, fetched 2026-11-24 11:45 UTC by `npm run proof`: wallet shows $5,000, a sale pays $4,953 now. Selling now keeps 99% of what your wallet shows.
 
 Computed by `exitQuote()` in `lib/simulate.ts` with the sell tax on (0.0%) and LP drain off, over 20 live pools. The holder queue is not shown in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list, body `{"address":"0x532f27101965dd16442E59d40670FaF5eBB142E4","platform":"base"}`), reason: "Parameter error".
 <!-- PROOF:END brett-exit -->
@@ -144,18 +144,18 @@ Every request is recorded with method, URL, body, status, latency and the first 
 `scripts/proof.mjs` makes real keyless calls for the demo tokens (or keyed calls when `CMC_PRO_API_KEY` is set) and rewrites the two blocks below, plus the timing table under "Measured latency". The keyless limit is per IP, so a 429 is retried up to 4 times, after the Retry-After wait CoinMarketCap sends or a growing backoff. When CoinMarketCap still cannot be reached, it says so in one line instead of showing a response.
 
 <!-- PROOF:BEGIN cmc-call -->
-Captured by `npm run proof` at 2026-11-24T11:09:34.917Z, keyless host, no key header sent. First 600 characters of each response.
+Captured by `npm run proof` at 2026-11-24T11:45:05.078Z, keyless host, no key header sent. First 600 characters of each response.
 
-**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 452 ms
+**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 457 ms
 
 ```json
-{"data":[{"addr":"0xba3f945812a83471d709bce9c3ca699a19fb46f7","v24":"1403.754598381091607597","pubAt":"1709041137000","t0":{"addr":"0x4200000000000000000000000000000000000006","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png","n":"Wrapped Ether","sym":"WETH","liq":"300.871310431795859437","liqUsd":"505692.47450546024407736"},"t1":{"addr":"0x532f27101965dd16442e59d40670faf5ebb142e4","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/29743.png","n":"Brett","sym":"BRETT","liq":"87489293.970595767417033587","liqUsd":"269876.548934651973991702"},"bidx":1,"exid":7791,"exn":"
+{"data":[{"addr":"0xba3f945812a83471d709bce9c3ca699a19fb46f7","v24":"1578.258126715657339424","pubAt":"1709041137000","t0":{"addr":"0x4200000000000000000000000000000000000006","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png","n":"Wrapped Ether","sym":"WETH","liq":"300.767214370237889634","liqUsd":"505840.576686368379921758"},"t1":{"addr":"0x532f27101965dd16442e59d40670faf5ebb142e4","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/29743.png","n":"Brett","sym":"BRETT","liq":"87546197.04095436187853372","liqUsd":"269351.28612489284051083"},"bidx":1,"exid":7791,"exn":"U
 ```
 
-**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 341 ms
+**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 349 ms
 
 ```json
-{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"252918.93644066409190134","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"68919027180.29167","liqUsd":"149255.496167221960386204"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"906.569108369","liqUsd":"63738.215886293196069315"}
+{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"252458.379249796612205391","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"69186258929.91446","liqUsd":"149524.242131951739889055"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"898.374590332","liqUsd":"63218.323524568356656052"
 ```
 
 - Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list, body `{"address":"0x532f27101965dd16442E59d40670FaF5eBB142E4","platform":"base"}`), reason: "Parameter error".
@@ -188,12 +188,12 @@ Keys seen in the real responses, checked against the candidate keys in `lib/cmc-
 The demo has a 5 second rule per step. `npm run proof` times the five calls the app makes for each demo token and rewrites the table below. In the app itself, the sample list gives each demo token 4 seconds (`LIST_BUDGET_MS` in `lib/config.ts`); a token that misses it is served from its seed snapshot and named in the source note.
 
 <!-- PROOF:BEGIN demo-timing -->
-Measured by `npm run proof` at 2026-11-24T11:09:34.917Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
+Measured by `npm run proof` at 2026-11-24T11:45:05.078Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
 
 | Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |
 | --- | --- | --- | --- | --- |
-| BRETT | base | 819 | 200, 200, 400, 400, 200 | yes |
-| Bonk | solana | 694 | 200, 200, 400, 400, 200 | yes |
+| BRETT | base | 852 | 200, 200, 400, 400, 200 | yes |
+| Bonk | solana | 795 | 200, 200, 400, 400, 200 | yes |
 <!-- PROOF:END demo-timing -->
 
 ### What the API made possible and where it pushed back
