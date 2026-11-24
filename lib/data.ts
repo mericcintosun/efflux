@@ -8,6 +8,6 @@ export * from "./data/seed";
 export const SOURCE_LABEL: Record<DataSource, string> = {
   live: "Live from CoinMarketCap",
   fake: "Seed data, not a live response",
-  snapshot: "Bundled snapshot, CoinMarketCap was unavailable for some tokens",
+  snapshot: "Some samples are a bundled snapshot; CoinMarketCap did not return them on this load",
   none: "No data source",
 };

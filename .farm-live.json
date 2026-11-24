@@ -1,4 +1,0 @@
-{
-  "requiredEnv": [],
-  "optionalEnv": ["CMC_PRO_API_KEY", "EFFLUX_DEMO_BASE_ADDRESS", "EFFLUX_DEMO_BSC_ADDRESS", "EFFLUX_DEMO_SOLANA_ADDRESS"]
-}

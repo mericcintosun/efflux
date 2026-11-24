@@ -125,13 +125,18 @@ function budget(ms: number): Promise<typeof LATE> {
 /**
  * Real mode sample list: every DEMO_TOKENS entry loads through loadExitBundle in
  * parallel, each one raced against LIST_BUDGET_MS. A live result inside the
- * budget is used as is. A failed one, a late one, or a chain with no demo
- * address falls back to the seed token on the same chain and is named in the
- * message. The late load keeps running and warms the 60 s cache for the next
+ * budget is used as is. A failed or late one falls back to the seed token on the
+ * same chain and is named in the message (and logged as a warning). A chain with
+ * no demo address is skipped. The late load keeps running and warms the 60 s cache for the next
  * request.
  */
 async function loadDemoTokens(): Promise<ApiEnvelope<TokenSnapshot[]>> {
-  const chains: Platform[] = ["base", "bsc", "solana"];
+  // A chain with no demo address (BSC by default) is left out of the real-mode
+  // list. Its seed token is an illustrative microcap, not a CoinMarketCap answer,
+  // and mixing it in used to mark every live load as a "bundled snapshot".
+  const all: Platform[] = ["base", "bsc", "solana"];
+  const configured = all.filter((p) => DEMO_TOKENS[p] !== null);
+  const chains = configured.length > 0 ? configured : all;
   const results = await Promise.all(
     chains.map(async (platform) => {
       const seed = tokens.find((t) => t.platform === platform);
@@ -158,6 +163,7 @@ async function loadDemoTokens(): Promise<ApiEnvelope<TokenSnapshot[]>> {
     }
   }
   const proof = results.flatMap((r) => r.proof);
+  if (fellBack.length > 0) console.warn(`[core] demo list fell back to the bundled snapshot for ${fellBack.join(", ")}`);
   const liveCount = data.length - fellBack.length;
   const allLive = fellBack.length === 0 && data.length > 0;
   return {
