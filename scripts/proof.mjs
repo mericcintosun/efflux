@@ -2,7 +2,16 @@
 // Writes the results into README.md and SUBMISSION.md between the PROOF markers.
 // Plain Node ESM, no dependencies. Never throws, always exits 0, never invents
 // output: a failed call becomes one honest "Not run" line.
-// It never reads or sends CMC_PRO_API_KEY: proof runs on the keyless host only.
+// By default it runs on the keyless host and sends no key. When CMC_PRO_API_KEY is
+// set (same variable as lib/config.ts), the same paths go to the keyed host with the
+// key as a header; the key is never printed or written into any block.
+//
+// Rate limits: the keyless host limits per IP and answers a burst with 429. Every
+// call is retried up to PROOF_RETRIES times on 429, 5xx, a timeout or a network
+// error, waiting for the Retry-After header when CMC sends one (capped) and a growing
+// backoff otherwise, plus up to 1.5 s of random jitter. Tokens run one after another with a pause in between, and the
+// cmc-call, cmc-fields and holders-sample blocks reuse the responses of the timing
+// pass instead of calling the same endpoints a second time.
 //
 // The brett-exit block runs the app's own model (exitQuote in lib/simulate.ts and
 // the pickers in lib/cmc-parse.ts) through a dynamic import. Both files only use
@@ -20,11 +29,27 @@ const CHAIN_NAME = { base: "Base", bsc: "BNB Chain", solana: "Solana" };
 const HOLDING_USD = 5000;
 
 const KEYLESS_BASE = "https://pro-api.coinmarketcap.com/public-api";
+const KEYED_BASE = "https://pro-api.coinmarketcap.com";
 const TIMEOUT_MS = 10000;
 const EXCERPT_CHARS = 600;
+/** Retries after the first attempt, on 429, 5xx, timeout or network error. */
+const PROOF_RETRIES = 4;
+/** Backoff when CMC sends no Retry-After header, per retry. */
+const BACKOFF_MS = [2000, 5000, 10000, 20000];
+/** Upper bound for one Retry-After wait. */
+const MAX_WAIT_MS = 30000;
+/** Pause between demo tokens so their bursts do not stack on the per-IP limit. */
+const TOKEN_GAP_MS = 2500;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Same defaults as lib/config.ts (kept in sync by hand; this script cannot import TypeScript).
 const env = (name) => (process.env[name] ?? "").trim() || undefined;
+const API_KEY = env("CMC_PRO_API_KEY");
+const BASE = API_KEY ? KEYED_BASE : KEYLESS_BASE;
+const PREFIX = API_KEY ? "" : "/public-api";
+const HOST_NOTE = API_KEY ? "keyed host (CMC_PRO_API_KEY sent as a header, never printed)" : "keyless host, no key header sent";
+const HOST_SHORT = API_KEY ? "keyed host" : "keyless host";
 const DEMO = [
   { platform: "base", address: env("EFFLUX_DEMO_BASE_ADDRESS") ?? "0x532f27101965dd16442E59d40670FaF5eBB142E4" },
   { platform: "bsc", address: env("EFFLUX_DEMO_BSC_ADDRESS") },
@@ -49,14 +74,27 @@ const CANDIDATES = {
   },
 };
 
-async function call(method, path, { query, body } = {}) {
-  const url = new URL(KEYLESS_BASE + path);
-  for (const [k, v] of Object.entries(query ?? {})) url.searchParams.set(k, v);
+/** Wait in ms from a Retry-After header (seconds or an HTTP date), or null. */
+function retryAfterMs(res) {
+  const h = res.headers.get("retry-after");
+  if (!h) return null;
+  const secs = Number(h);
+  if (Number.isFinite(secs) && secs >= 0) return Math.min(secs * 1000, MAX_WAIT_MS);
+  const at = Date.parse(h);
+  return Number.isFinite(at) ? Math.min(Math.max(at - Date.now(), 0), MAX_WAIT_MS) : null;
+}
+
+const retryable = (status) => status === 0 || status === 429 || status >= 500;
+
+async function attempt(method, url, body) {
+  const headers = { Accept: "application/json" };
+  if (body) headers["Content-Type"] = "application/json";
+  if (API_KEY) headers["X-CMC_PRO_API_KEY"] = API_KEY;
   const started = Date.now();
   try {
     const res = await fetch(url, {
       method,
-      headers: body ? { Accept: "application/json", "Content-Type": "application/json" } : { Accept: "application/json" },
+      headers,
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
@@ -67,11 +105,42 @@ async function call(method, path, { query, body } = {}) {
     } catch {
       json = null;
     }
-    return { method, path, url: url.toString(), body, status: res.status, ms: Date.now() - started, text, json };
+    return { status: res.status, ms: Date.now() - started, text, json, wait: retryAfterMs(res) };
   } catch (err) {
     const timedOut = err && (err.name === "TimeoutError" || err.name === "AbortError");
-    return { method, path, url: url.toString(), body, status: 0, ms: Date.now() - started, error: timedOut ? "timeout" : "network" };
+    return { status: 0, ms: Date.now() - started, error: timedOut ? "timeout" : "network", wait: null };
   }
+}
+
+async function call(method, path, { query, body } = {}) {
+  const url = new URL(BASE + path);
+  for (const [k, v] of Object.entries(query ?? {})) url.searchParams.set(k, v);
+  const started = Date.now();
+  const statuses = [];
+  let a;
+  for (let i = 0; i <= PROOF_RETRIES; i++) {
+    a = await attempt(method, url, body);
+    statuses.push(a.status === 0 ? a.error : String(a.status));
+    if (!retryable(a.status) || i === PROOF_RETRIES) break;
+    // Jitter so the five parallel calls of one token do not retry in lockstep and
+    // collide on the per-IP limit again at the same instant.
+    const wait = (a.wait ?? BACKOFF_MS[Math.min(i, BACKOFF_MS.length - 1)]) + Math.floor(Math.random() * 1500);
+    console.log(`proof: ${method} ${path} answered ${statuses[statuses.length - 1]}, retry ${i + 1} of ${PROOF_RETRIES} in ${wait} ms`);
+    await sleep(wait);
+  }
+  return {
+    method,
+    path,
+    url: url.toString(),
+    body,
+    status: a.status,
+    ms: a.ms,
+    totalMs: Date.now() - started,
+    statuses,
+    text: a.text,
+    json: a.json,
+    error: a.error,
+  };
 }
 
 function firstItem(json) {
@@ -87,22 +156,24 @@ function firstItem(json) {
 }
 
 function failLine(r) {
-  if (r.status === 0) return `Not run in this build: ${r.error === "timeout" ? `the request timed out after ${TIMEOUT_MS} ms` : "no network to reach CoinMarketCap"} (${r.method} ${r.path}).`;
-  if (r.status === 429) return `Not run in this build: CoinMarketCap returned 429 (${r.method} ${r.path}).`;
-  return `Not run in this build: CoinMarketCap returned ${r.status} (${r.method} ${r.path}).`;
+  const tries = r.statuses && r.statuses.length > 1 ? `, after ${r.statuses.length} attempts` : "";
+  if (r.status === 0) return `Not run in this build: ${r.error === "timeout" ? `the request timed out after ${TIMEOUT_MS} ms` : "no network to reach CoinMarketCap"} (${r.method} ${r.path}${tries}).`;
+  if (r.status === 429) return `Not run in this build: CoinMarketCap rate-limited this machine with 429 (${r.method} ${r.path}${tries}).`;
+  return `Not run in this build: CoinMarketCap returned ${r.status} (${r.method} ${r.path}${tries}).`;
 }
 
 const ok = (r) => r.status >= 200 && r.status < 300;
-const label = (r, d) => `${r.method} /public-api${r.path} (${d.platform}, \`${d.address}\`)`;
+const label = (r, d) => `${r.method} ${PREFIX}${r.path} (${d.platform}, \`${d.address}\`)`;
+const triesNote = (r) => (r.statuses && r.statuses.length > 1 ? `, answered after ${r.statuses.join(" > ")}` : "");
 
 function callBlock(results, at) {
-  const lines = [`Captured by \`npm run proof\` at ${at}, keyless host, no key header sent. First ${EXCERPT_CHARS} characters of each response.`, ""];
+  const lines = [`Captured by \`npm run proof\` at ${at}, ${HOST_NOTE}. First ${EXCERPT_CHARS} characters of each response.`, ""];
   for (const { r, d } of results) {
     if (!ok(r)) {
       lines.push(`- ${failLine(r)}`, "");
       continue;
     }
-    lines.push(`**${label(r, d)}**: status ${r.status}, ${r.ms} ms${r.body ? `, body \`${JSON.stringify(r.body)}\`` : ""}`, "");
+    lines.push(`**${label(r, d)}**: status ${r.status}, ${r.ms} ms${triesNote(r)}${r.body ? `, body \`${JSON.stringify(r.body)}\`` : ""}`, "");
     lines.push("```json", r.text.slice(0, EXCERPT_CHARS), "```", "");
   }
   return lines.join("\n").trimEnd();
@@ -155,15 +226,16 @@ function timingBlock(rows, at) {
     const c = rows[0].calls[0];
     return `Not run in this build: ${c.error === "timeout" ? `every request timed out after ${TIMEOUT_MS} ms` : "no network to reach CoinMarketCap"}.`;
   }
+  const retried = rows.some((r) => r.calls.some((c) => c.statuses.length > 1));
   const lines = [
-    `Measured by \`npm run proof\` at ${at}, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with \`performance.now()\`.`,
+    `Measured by \`npm run proof\` at ${at}, ${HOST_SHORT}. Each row runs the five calls the app makes for one token, in parallel, timed with \`performance.now()\`.${retried ? " A code such as `429 > 200` means CoinMarketCap rate-limited the call and the retry, after its Retry-After wait, succeeded; the total then includes that wait." : ""}`,
     "",
     "| Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |",
     "| --- | --- | --- | --- | --- |",
   ];
   for (const r of rows) {
     const name = r.symbol ?? `${r.d.address.slice(0, 6)}...${r.d.address.slice(-4)}`;
-    const codes = r.calls.map((c) => (c.status === 0 ? (c.error === "timeout" ? "timeout" : "network") : String(c.status))).join(", ");
+    const codes = r.calls.map((c) => c.statuses.join(" > ")).join(", ");
     lines.push(`| ${name} | ${r.d.platform} | ${r.totalMs} | ${codes} | ${r.totalMs < DEMO_BUDGET_MS ? "yes" : "no"} |`);
   }
   return lines.join("\n");
@@ -190,7 +262,7 @@ function holdersSampleBlock(r, d, symbol, at) {
   const records = firstItems(r.json, 2);
   if (records.length === 0) return `Not run in this build: CoinMarketCap answered ${r.status} but the response held no holder records (POST /v1/dex/holders/list).`;
   return [
-    `Fetched by \`npm run proof\` at ${utc(at)}: POST /public-api/v1/dex/holders/list for ${tokenName(d, symbol)}, keyless host, status ${r.status}, ${r.ms} ms, body \`${JSON.stringify(r.body)}\`. First ${records.length} holder records of the real response:`,
+    `Fetched by \`npm run proof\` at ${utc(at)}: POST ${PREFIX}/v1/dex/holders/list for ${tokenName(d, symbol)}, ${HOST_SHORT}, status ${r.status}, ${r.ms} ms, body \`${JSON.stringify(r.body)}\`. First ${records.length} holder records of the real response:`,
     "",
     "```json",
     JSON.stringify(records, null, 2),
@@ -259,29 +331,29 @@ function replaceBlock(text, name, body, file = "README.md") {
 
 async function main() {
   const at = new Date().toISOString();
-  const results = [];
-  for (const d of DEMO) {
-    const r = await call("GET", "/v1/dex/token/pools", { query: { platform: d.platform, address: d.address } });
-    results.push({ r, d });
-  }
-  let holders = null;
-  if (DEMO[0]) {
-    const d = DEMO[0];
-    const r = await call("POST", "/v1/dex/holders/list", { body: { tokenAddress: d.address, platform: d.platform } });
-    results.push({ r, d });
-    holders = { r, d };
-  }
+  console.log(`proof: ${HOST_NOTE}, up to ${PROOF_RETRIES} retries per call on 429, 5xx, timeout or network error`);
 
-  for (const { r, d } of results) {
-    const summary = ok(r) ? `status=${r.status} ms=${r.ms} bytes=${r.text.length}` : failLine(r);
-    console.log(`proof: ${r.method} ${r.path} ${d.platform} ${summary}`);
-  }
-
+  // One pass: the five app calls per token, tokens one after another with a pause.
+  // The cmc-call, cmc-fields and holders-sample blocks reuse these responses, so
+  // the script sends 5 requests per token instead of repeating pools and holders.
   const timings = [];
-  for (const d of DEMO) {
+  for (const [i, d] of DEMO.entries()) {
+    if (i > 0) await sleep(TOKEN_GAP_MS);
     const t = await timeToken(d);
     timings.push(t);
     console.log(`proof: demo-timing ${d.platform} total_ms=${t.totalMs} within_5s=${t.totalMs < DEMO_BUDGET_MS ? "yes" : "no"}`);
+  }
+
+  const results = timings.map((t) => ({ r: t.calls[1], d: t.d }));
+  let holders = null;
+  if (timings[0]) {
+    holders = { r: timings[0].calls[2], d: timings[0].d };
+    results.push(holders);
+  }
+
+  for (const { r, d } of results) {
+    const summary = ok(r) ? `status=${r.status} ms=${r.ms} bytes=${r.text.length}${r.statuses.length > 1 ? ` attempts=${r.statuses.join(">")}` : ""}` : failLine(r);
+    console.log(`proof: ${r.method} ${r.path} ${d.platform} ${summary}`);
   }
 
   const none = "Not run in this build: no demo address is configured.";
