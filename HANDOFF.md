@@ -705,3 +705,16 @@ None, no command access.
 - The 90-second flow above runs end to end, seed data and live data both.
 - Wow moment rehearsed: the queue slider drag reads on camera without explanation.
 - DoraHacks BUIDL submitted with video, repo, track and the #BuildwithCMC post URL before 2026-12-09 23:59 UTC.
+
+## QA: external findings
+
+Round 1 of the live-site QA pass (2026-11-24).
+
+- `POST https://pro-api.coinmarketcap.com/public-api/v1/dex/holders/list`, header `Content-Type: application/json`, body `{"tokenAddress":"0x532f27101965dd16442E59d40670FaF5eBB142E4","platform":"base"}` answers **400** (README `demo-timing`: BRETT and Bonk both `200, 200, 400, 400, 200`). The body matches the field names in the ecosystem research (tokenAddress, platform), and the GET calls with `platform=base` succeed, so the right shape could not be settled from the repo. The QA agent had no network access to the CMC docs or the OpenAPI spec and did not guess a new body. Not fixed.
+- `GET .../public-api/v1/dex/security/detail?platform=base&address=0x532f...` answers **400** as well, so `sellTaxPct` is 0 for live tokens. The UI now says "no sell tax on record" instead of claiming the token has none.
+- What the judge sees now: live pools from CoinMarketCap, and where the holder list is missing the story, `/notes` and the panel say in one muted sentence that CoinMarketCap sent no holder list for this load, so no wallet is queued. No "0 largest wallets", no "0 holders", no "0 wallets ahead".
+- Next step for a human with network access: read the holders/list and security/detail operations in the openCMC OpenAPI spec, fix the body in `holdersCall` (`lib/cmc.ts`) and the matching call in `scripts/proof.mjs`, and rerun `npm run proof`. The proof lines stay "Not run ... returned 400" until then, which is truthful.
+
+Fixed in this repo (root causes, not external):
+- "Bundled snapshot" notice: BSC has no demo address, so `loadDemoTokens` always mixed the seed MOSS into the real-mode list and marked every load as a snapshot. Chains with no demo address are now skipped (`lib/adapter.ts`); a real fallback logs a `console.warn` and keeps a calmer note (`lib/data.ts`).
+- "loses another 451.4% of liquidity": `parseLpChangePct` compared the two ends of the whole liquidity-change list, not 24 hours, and the story and `/notes` printed `Math.abs()` of a growth as a loss. The picker now uses the last 24 hours, bounds a loss at -100%, and the copy follows the sign the model uses (`drainScale` only repeats liquidity that left).
