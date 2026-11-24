@@ -155,11 +155,37 @@ function firstItem(json) {
   return null;
 }
 
+/** CMC's own reason for a rejected request (status.error_message), trimmed, or null. */
+function cmcReason(r) {
+  const s = r.json && typeof r.json === "object" ? r.json.status : null;
+  let msg = s && typeof s === "object" ? s.error_message ?? s.errorMessage ?? null : null;
+  if (!msg && r.json && typeof r.json === "object") msg = r.json.message ?? r.json.error ?? null;
+  if (!msg && typeof r.text === "string" && r.text.trim()) msg = r.text.trim();
+  if (typeof msg !== "string" || !msg.trim()) return null;
+  return msg.replace(/\s+/g, " ").replace(/`/g, "'").slice(0, 200);
+}
+
 function failLine(r) {
   const tries = r.statuses && r.statuses.length > 1 ? `, after ${r.statuses.length} attempts` : "";
   if (r.status === 0) return `Not run in this build: ${r.error === "timeout" ? `the request timed out after ${TIMEOUT_MS} ms` : "no network to reach CoinMarketCap"} (${r.method} ${r.path}${tries}).`;
   if (r.status === 429) return `Not run in this build: CoinMarketCap rate-limited this machine with 429 (${r.method} ${r.path}${tries}).`;
-  return `Not run in this build: CoinMarketCap returned ${r.status} (${r.method} ${r.path}${tries}).`;
+  const reason = cmcReason(r);
+  const sent = r.body ? `, body \`${JSON.stringify(r.body)}\`` : "";
+  return `Not run in this build: CoinMarketCap returned ${r.status} (${r.method} ${r.path}${tries}${sent})${reason ? `, reason: "${reason}"` : ""}.`;
+}
+
+// Holders POST: the research notes name the address field `tokenAddress`, but that
+// body answered 400 while every GET DEX call that succeeds names it `address`.
+// Same bounded fallback as holdersCall() in lib/cmc.ts: one second try with
+// `address` on a 400, never more. The returned result says which body was sent.
+async function holdersPost(d) {
+  const first = await call("POST", "/v1/dex/holders/list", { body: { tokenAddress: d.address, platform: d.platform } });
+  if (first.status !== 400) return first;
+  console.log(`proof: POST /v1/dex/holders/list ${d.platform} 400 with tokenAddress (${cmcReason(first) ?? "no reason given"}), one try with address`);
+  const second = await call("POST", "/v1/dex/holders/list", { body: { address: d.address, platform: d.platform } });
+  if (second.status !== 400) return second;
+  console.log(`proof: POST /v1/dex/holders/list ${d.platform} 400 with address too (${cmcReason(second) ?? "no reason given"})`);
+  return second;
 }
 
 const ok = (r) => r.status >= 200 && r.status < 300;
@@ -211,7 +237,7 @@ async function timeToken(d) {
   const calls = await Promise.all([
     call("GET", "/v1/dex/token", { query }),
     call("GET", "/v1/dex/token/pools", { query }),
-    call("POST", "/v1/dex/holders/list", { body: { tokenAddress: d.address, platform: d.platform } }),
+    holdersPost(d),
     call("GET", "/v1/dex/security/detail", { query }),
     call("GET", "/v1/dex/liquidity-change/list", { query }),
   ]);
@@ -276,8 +302,11 @@ function holdersSampleBlock(r, d, symbol, at) {
 async function brettExitBlock(t, at) {
   if (!t) return "Not run in this build: no demo address is configured.";
   const [tokenRes, poolsRes, holdersRes, securityRes, lcRes] = t.calls;
-  const failed = [tokenRes, poolsRes, holdersRes].find((c) => !ok(c));
+  // Token and pools are enough for "what a sale pays now"; the holder list only
+  // adds the queue. So a failed holders call shrinks the block, it does not blank it.
+  const failed = [tokenRes, poolsRes].find((c) => !ok(c));
   if (failed) return failLine(failed);
+  const holdersOk = ok(holdersRes);
   let sim;
   let parse;
   try {
@@ -288,7 +317,7 @@ async function brettExitBlock(t, at) {
   }
   const info = parse.parseTokenInfo(tokenRes.json);
   const pools = parse.parsePools(poolsRes.json);
-  const holders = parse.parseHolders(holdersRes.json);
+  const holders = holdersOk ? parse.parseHolders(holdersRes.json) : [];
   if (!(info.priceUsd > 0) || pools.length === 0) return "Not run in this build: the live response had no usable price or pools.";
   const token = {
     slug: `${t.d.platform}-${t.d.address.slice(0, 10).toLowerCase()}`,
@@ -308,8 +337,17 @@ async function brettExitBlock(t, at) {
   const q0 = quote(0);
   const q5 = quote(5);
   const q10 = quote(10);
-  if (q10.walletsAhead === 0) return "Not run in this build: the live holder list had no wallets that can sell, so the queue cannot be shown.";
   const keep = Math.round((q0.receiveUsd / HOLDING_USD) * 100);
+  if (q10.walletsAhead === 0) {
+    const why = holdersOk
+      ? "the live holder list had no wallets that can sell"
+      : failLine(holdersRes).replace(/^Not run in this build: /, "").replace(/\.$/, "");
+    return [
+      `${tokenName(t.d, token.symbol)}, fetched ${utc(at)} by \`npm run proof\`: wallet shows ${sim.fmtUsd(HOLDING_USD)}, a sale pays ${sim.fmtUsd(q0.receiveUsd)} now. Selling now keeps ${keep}% of what your wallet shows.`,
+      "",
+      `Computed by \`exitQuote()\` in \`lib/simulate.ts\` with the sell tax on (${sim.fmtPctValue(token.sellTaxPct)}) and LP drain off, over ${pools.length} live pools. The holder queue is not shown in this build: ${why}.`,
+    ].join("\n");
+  }
   return [
     `${tokenName(t.d, token.symbol)}, fetched ${utc(at)} by \`npm run proof\`: wallet shows ${sim.fmtUsd(HOLDING_USD)}, a sale pays ${sim.fmtUsd(q0.receiveUsd)} now, ${sim.fmtUsd(q5.receiveUsd)} if the top ${q5.walletsAhead} holders sell first, ${sim.fmtUsd(q10.receiveUsd)} if the top ${q10.walletsAhead} do. Selling now keeps ${keep}% of what your wallet shows.`,
     "",
