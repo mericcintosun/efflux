@@ -66,6 +66,24 @@ describe("parseLpChangePct", () => {
     expect(parseLpChangePct({ data: { chg24h: -4.5 } })).toBe(-4.5);
   });
 
+  it("ignores points older than 24 hours before the newest one", () => {
+    const lcs = [
+      { t: 1_700_000_000, tlu: 20_000 },
+      { t: 1_700_500_000, tlu: 100_000 },
+      { t: 1_700_550_000, tlu: 110_000 },
+    ];
+    expect(parseLpChangePct({ data: { lcs } })).toBeCloseTo(10, 9);
+  });
+
+  it("reads millisecond timestamps and never reports a loss above 100%", () => {
+    expect(parseLpChangePct({ data: { chg24h: -451.4 } })).toBe(-100);
+    const lcs = [
+      { t: 1_700_000_000_000, tlu: 100_000 },
+      { t: 1_700_043_200_000, tlu: 94_000 },
+    ];
+    expect(parseLpChangePct({ data: { lcs } })).toBeCloseTo(-6, 9);
+  });
+
   it("returns zero with fewer than two points", () => {
     expect(parseLpChangePct({ data: { lcs: [{ t: 1, tlu: 10 }] } })).toBe(0);
   });

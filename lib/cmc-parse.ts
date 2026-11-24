@@ -123,15 +123,28 @@ export function parseSellTaxPct(raw: unknown): number {
 export function parseLpChangePct(raw: unknown): number {
   const d = rec(unwrap(raw));
   const direct = num(d, ["chg24h", "change24h", "lc24h"]);
-  if (direct !== undefined) return direct;
-  // Otherwise compare the oldest and newest total-liquidity points in the window.
+  // Liquidity cannot fall by more than all of it, so a change is bounded below at -100%.
+  if (direct !== undefined) return Math.max(-100, direct);
+  // Otherwise compare the oldest and newest total-liquidity points of the last
+  // 24 hours. The list can span far more than a day, so comparing its two ends
+  // reported changes like +451% that had nothing to do with "the last 24 hours".
   // tlu is total liquidity USD; a0, a1 and tu are not described in the schema.
   const points = list(raw)
-    .map((e) => ({ t: num(e, ["t", "ts", "time"]) ?? 0, v: num(e, ["tlu", "tu"]) ?? NaN }))
-    .filter((p) => Number.isFinite(p.v) && p.v > 0)
+    .map((e) => ({ t: toSeconds(num(e, ["t", "ts", "time"]) ?? 0), v: num(e, ["tlu", "tu"]) ?? NaN }))
+    .filter((p) => Number.isFinite(p.v) && p.v > 0 && p.t > 0)
     .sort((a, b) => a.t - b.t);
   if (points.length < 2) return 0;
-  return ((points[points.length - 1].v - points[0].v) / points[0].v) * 100;
+  const newest = points[points.length - 1];
+  const day = points.filter((p) => p.t >= newest.t - DAY_SECONDS);
+  if (day.length < 2) return 0;
+  return Math.max(-100, ((newest.v - day[0].v) / day[0].v) * 100);
+}
+
+const DAY_SECONDS = 86_400;
+
+/** Timestamps may arrive in seconds or milliseconds; compare them in seconds. */
+function toSeconds(t: number): number {
+  return t > 1e12 ? t / 1000 : t;
 }
 
 /** Token info: price, symbol, name and supply, or undefined fields when missing. */
