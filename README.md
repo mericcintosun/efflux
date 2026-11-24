@@ -28,7 +28,7 @@ People holding small tokens on Base, BNB Chain and Solana see a "value" in their
 Here is a real token instead of a made-up pool. The figures below are computed by `exitQuote()` over live CoinMarketCap data each time `npm run proof` runs:
 
 <!-- PROOF:BEGIN brett-exit -->
-BRETT on Base, fetched 2026-11-24 10:49 UTC by `npm run proof`: wallet shows $5,000, a sale pays $4,953 now. Selling now keeps 99% of what your wallet shows.
+BRETT on Base, fetched 2026-11-24 10:53 UTC by `npm run proof`: wallet shows $5,000, a sale pays $4,953 now. Selling now keeps 99% of what your wallet shows.
 
 Computed by `exitQuote()` in `lib/simulate.ts` with the sell tax on (0.0%) and LP drain off, over 20 live pools. The holder queue is not shown in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list, body `{"address":"0x532f27101965dd16442E59d40670FaF5eBB142E4","platform":"base"}`), reason: "Parameter error".
 <!-- PROOF:END brett-exit -->
@@ -144,18 +144,18 @@ Every request is recorded with method, URL, body, status, latency and the first 
 `scripts/proof.mjs` makes real keyless calls for the demo tokens (or keyed calls when `CMC_PRO_API_KEY` is set) and rewrites the two blocks below, plus the timing table under "Measured latency". The keyless limit is per IP, so a 429 is retried up to 4 times, after the Retry-After wait CoinMarketCap sends or a growing backoff. When CoinMarketCap still cannot be reached, it says so in one line instead of showing a response.
 
 <!-- PROOF:BEGIN cmc-call -->
-Captured by `npm run proof` at 2026-11-24T10:49:06.925Z, keyless host, no key header sent. First 600 characters of each response.
+Captured by `npm run proof` at 2026-11-24T10:53:04.577Z, keyless host, no key header sent. First 600 characters of each response.
 
-**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 450 ms
+**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 425 ms
 
 ```json
 {"data":[{"addr":"0xba3f945812a83471d709bce9c3ca699a19fb46f7","v24":"1403.041789935337747921","pubAt":"1709041137000","t0":{"addr":"0x4200000000000000000000000000000000000006","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png","n":"Wrapped Ether","sym":"WETH","liq":"300.871323940874130189","liqUsd":"506829.042909834632001654"},"t1":{"addr":"0x532f27101965dd16442e59d40670faf5ebb142e4","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/29743.png","n":"Brett","sym":"BRETT","liq":"87489284.383467898709256639","liqUsd":"270482.294517468491638547"},"bidx":1,"exid":7791,"exn":
 ```
 
-**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 383 ms
+**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 349 ms
 
 ```json
-{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"251844.553830823776181051","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"69044307121.42984","liqUsd":"149633.928395034032329419"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"902.695891348","liqUsd":"63603.160018444963750005"
+{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"252106.246626086810707453","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"68781696583.56211","liqUsd":"149215.210971868543201107"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"910.788486994","liqUsd":"64056.918859800783949948"
 ```
 
 - Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list, body `{"address":"0x532f27101965dd16442E59d40670FaF5eBB142E4","platform":"base"}`), reason: "Parameter error".
@@ -188,12 +188,12 @@ Keys seen in the real responses, checked against the candidate keys in `lib/cmc-
 The demo has a 5 second rule per step. `npm run proof` times the five calls the app makes for each demo token and rewrites the table below. In the app itself, the sample list gives each demo token 4 seconds (`LIST_BUDGET_MS` in `lib/config.ts`); a token that misses it is served from its seed snapshot and named in the source note.
 
 <!-- PROOF:BEGIN demo-timing -->
-Measured by `npm run proof` at 2026-11-24T10:49:06.925Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
+Measured by `npm run proof` at 2026-11-24T10:53:04.577Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
 
 | Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |
 | --- | --- | --- | --- | --- |
-| BRETT | base | 822 | 200, 200, 400, 400, 200 | yes |
-| Bonk | solana | 879 | 200, 200, 400, 400, 200 | yes |
+| BRETT | base | 824 | 200, 200, 400, 400, 200 | yes |
+| Bonk | solana | 641 | 200, 200, 400, 400, 200 | yes |
 <!-- PROOF:END demo-timing -->
 
 ### What the API made possible and where it pushed back
