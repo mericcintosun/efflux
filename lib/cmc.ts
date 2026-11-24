@@ -61,7 +61,7 @@ export const CMC_ENDPOINTS = [
   { method: "GET", path: "/v1/dex/search", live: false, use: "Token search by name or symbol: wrapper exists in lib/cmc.ts, not called by the live UI yet" },
 ] as const;
 
-type CallResult = { ok: true; json: unknown } | { ok: false; code: ErrorCode };
+type CallResult = { ok: true; json: unknown } | { ok: false; code: ErrorCode; status?: number };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -122,7 +122,12 @@ async function cmcCall(
         await sleep(CMC_RETRY_DELAY_MS);
         continue;
       }
-      if (!res.ok) return { ok: false, code: "upstream_error" };
+      if (!res.ok) {
+        // Keep CMC's own reason (status.error_message) in the server log; the
+        // full body is already in the proof entry for the drawer.
+        if (res.status >= 400 && res.status < 500) console.warn(`${LOG_PREFIX} cmc ${opts.method} ${path} ${res.status}: ${text.slice(0, 300)}`);
+        return { ok: false, code: "upstream_error", status: res.status };
+      }
       try {
         return { ok: true, json: JSON.parse(text) as unknown };
       } catch {
@@ -148,10 +153,21 @@ const json = (r: CallResult): unknown => (r.ok ? r.json : null);
 /**
  * The Next data cache does not keep POST responses, so the holders call gets a
  * small in-process memo: server memory only, keyed by platform plus address,
- * HOLDERS_MEMO_MS long, successful answers only. A hit replays the proof
+ * HOLDERS_MEMO_MS long, successful answers and 400s only. A hit replays the proof
  * entries of the call that filled it, so the drawer still shows a real request.
  */
 const holdersMemo = new Map<string, { until: number; result: CallResult; proof: ApiProof[] }>();
+
+/**
+ * Field name for the token address in the holders POST body. The research notes
+ * say `tokenAddress`, but that body answers 400 on the keyless host, while every
+ * GET DEX call that succeeds names the same value `address`. So a 400 on the
+ * first shape gets exactly one second try with `address` (same platform value),
+ * and the shape that answered 2xx is kept for later calls in this process.
+ * Bounded: at most two shapes, never a loop of guesses.
+ */
+const HOLDERS_ADDRESS_FIELDS = ["tokenAddress", "address"] as const;
+let holdersFieldIdx = 0;
 
 async function holdersCall(platform: Platform, address: string, proof: ApiProof[]): Promise<CallResult> {
   const key = `${platform}:${address.toLowerCase()}`;
@@ -164,13 +180,19 @@ async function holdersCall(platform: Platform, address: string, proof: ApiProof[
   }
   if (hit) holdersMemo.delete(key);
   const own: ApiProof[] = [];
-  const result = await cmcCall(
-    "/v1/dex/holders/list",
-    { method: "POST", body: { tokenAddress: address, platform: PLATFORM_PARAM[platform] } },
-    own
-  );
+  const post = (field: string) =>
+    cmcCall("/v1/dex/holders/list", { method: "POST", body: { [field]: address, platform: PLATFORM_PARAM[platform] } }, own);
+  let result = await post(HOLDERS_ADDRESS_FIELDS[holdersFieldIdx]);
+  if (!result.ok && result.status === 400 && holdersFieldIdx === 0) {
+    log(`cmc call /v1/dex/holders/list 400 with tokenAddress, one try with address`);
+    const second = await post(HOLDERS_ADDRESS_FIELDS[1]);
+    if (second.ok) holdersFieldIdx = 1;
+    result = second;
+  }
   proof.push(...own);
-  if (result.ok) {
+  // A 400 is about the request shape, not load, so it is memoized too: a page
+  // reload in the next 60 s does not resend two rejected POSTs.
+  if (result.ok || result.status === 400) {
     if (holdersMemo.size > 200) holdersMemo.clear();
     holdersMemo.set(key, { until: now + HOLDERS_MEMO_MS, result, proof: own });
   }

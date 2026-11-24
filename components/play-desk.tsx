@@ -89,7 +89,7 @@ export function PlayDesk({
   const holdingId = useId();
   const addressRef = useRef<HTMLInputElement>(null);
   const proofFor = useCallback(
-    (t: TokenSnapshot | null) => (t ? samplesProof.filter((p) => p.url.includes(t.address) || p.body?.tokenAddress === t.address) : []),
+    (t: TokenSnapshot | null) => (t ? samplesProof.filter((p) => p.url.includes(t.address) || p.body?.tokenAddress === t.address || p.body?.address === t.address) : []),
     [samplesProof]
   );
 

@@ -192,7 +192,7 @@ export const realAdapter: ExitAdapter = {
     return {
       source: isSeed ? "snapshot" : "live",
       data: t,
-      proof: env.proof.filter((p) => p.url.includes(encodeURIComponent(t.address)) || p.body?.tokenAddress === t.address),
+      proof: env.proof.filter((p) => p.url.includes(encodeURIComponent(t.address)) || p.body?.tokenAddress === t.address || p.body?.address === t.address),
       message: isSeed ? `Bundled snapshot for ${t.symbol}.` : `Live from CoinMarketCap: ${t.symbol}.`,
     };
   },
