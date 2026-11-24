@@ -144,7 +144,7 @@ export function PoolSceneFrame({
         </p>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="outline" className="min-h-11" onClick={pour} disabled={max === 0}>
-            {sold >= max ? "Refill the pool" : "Let the next wallet sell"}
+            {max === 0 ? "No wallet queued to sell" : sold >= max ? "Refill the pool" : "Let the next wallet sell"}
           </Button>
           {palette && webgl ? (
             <Button variant="ghost" className="min-h-11" onClick={() => setResetKey((k) => k + 1)}>

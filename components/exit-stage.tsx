@@ -133,8 +133,9 @@ export function ExitStage({
         />
         {maxAhead === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No holder can sell ahead of you: the holder list is empty or every large wallet is a pool, burn, exchange, bridge or
-            locker. The slider moves once a token with sellable holders is loaded.
+            {token.holders.length === 0
+              ? "CoinMarketCap sent no holder list for this token, so the queue stays empty and the slider rests at zero."
+              : "Every large wallet of this token is a pool, burn, exchange, bridge or locker, so nobody is queued to sell ahead of you."}
           </p>
         ) : null}
         {compact ? (
@@ -161,6 +162,14 @@ export function ExitStage({
 }
 
 function ExitCurve({ q, compact }: { q: ExitResult; compact?: boolean }) {
+  // With no wallet that can sell first, the curve is a single point; say that instead of drawing "0 wallets ahead".
+  if (q.curve.length < 2) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No large wallet is queued ahead of you, so the payout does not change with the queue: {fmtUsd(q.receiveUsd)}.
+      </p>
+    );
+  }
   const W = 640;
   const H = 150;
   const pad = 10;
@@ -189,7 +198,7 @@ function ExitCurve({ q, compact }: { q: ExitResult; compact?: boolean }) {
       <figcaption className="mt-1 flex justify-between text-xs text-muted-foreground">
         <span>Nobody ahead of you</span>
         <span>Dashed line: what the wallet shows</span>
-        <span>{q.curve.length - 1} wallets ahead</span>
+        <span>{q.curve.length - 1 === 1 ? "1 wallet ahead" : `${q.curve.length - 1} wallets ahead`}</span>
       </figcaption>
     </figure>
   );

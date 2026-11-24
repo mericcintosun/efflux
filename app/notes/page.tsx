@@ -30,12 +30,22 @@ function WorkedExample({ t }: { t: TokenSnapshot }) {
   const plain = exitQuote({ token: t, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: false, applyDrain: false });
   const cuts = exitQuote({ token: t, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 0, applyTax: true, applyDrain: true });
   const queue = exitQuote({ token: t, holdingUsd: DEFAULT_HOLDING_USD, walletsAhead: 10, applyTax: true, applyDrain: true });
+  const tax = t.sellTaxPct > 0 ? `the ${fmtPctValue(t.sellTaxPct)} sell tax` : "no sell tax on record";
+  // Only liquidity that left is repeated (drainScale in lib/simulate.ts), so a growing pool gets no drain clause.
+  const drain = t.lpChange24hPct < 0 ? ` and a repeat of the ${fmtPctValue(-t.lpChange24hPct)} LP drain` : " (liquidity did not shrink in 24 hours, so no drain)";
+  const ahead = queue.walletsAhead;
+  const queueClause =
+    ahead > 0
+      ? `, and ${fmtUsd(queue.receiveUsd)} after the ${ahead === 1 ? "largest wallet sells" : `${ahead} largest wallets sell`} first.`
+      : t.holders.length === 0
+        ? ". CoinMarketCap sent no holder list for this load, so the queue step has no wallets to sell first."
+        : ". None of the largest holders is a wallet that market-sells, so the queue step changes nothing.";
   return (
     <p className="max-w-[65ch] text-lg">
       With the {t.symbol} snapshot ({t.pools.length} pools, {fmtCompactUsd(totalLiquidityUsd(t))} of liquidity), a{" "}
-      {fmtUsd(DEFAULT_HOLDING_USD)} position pays {fmtUsd(plain.receiveUsd)} on price impact alone, {fmtUsd(cuts.receiveUsd)} with the{" "}
-      {fmtPctValue(t.sellTaxPct)} sell tax and a repeat of the {fmtPctValue(Math.abs(t.lpChange24hPct))} LP drain, and {fmtUsd(queue.receiveUsd)} after the{" "}
-      {queue.walletsAhead} largest wallets sell first.
+      {fmtUsd(DEFAULT_HOLDING_USD)} position pays {fmtUsd(plain.receiveUsd)} on price impact alone, {fmtUsd(cuts.receiveUsd)} with {tax}
+      {drain}
+      {queueClause}
     </p>
   );
 }

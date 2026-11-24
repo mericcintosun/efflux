@@ -32,15 +32,24 @@ const CHAPTERS: Chapter[] = [
     id: "cuts",
     label: "Hidden cuts",
     preset: () => ({ ahead: 0, applyTax: true, applyDrain: true }),
-    line: (q, t) =>
-      `Add the ${fmtPctValue(t.sellTaxPct)} sell tax and assume tomorrow loses another ${fmtPctValue(Math.abs(t.lpChange24hPct))} of liquidity, like the last 24 hours did: ${fmtUsd(q.receiveUsd)}.`,
+    line: (q, t) => {
+      const tax = t.sellTaxPct > 0 ? `Add the ${fmtPctValue(t.sellTaxPct)} sell tax` : `${t.symbol} has no sell tax on record`;
+      // Only liquidity that left is projected forward (drainScale in lib/simulate.ts), so the copy follows the sign.
+      return t.lpChange24hPct < 0
+        ? `${tax}, and assume tomorrow loses another ${fmtPctValue(-t.lpChange24hPct)} of liquidity, like the last 24 hours did: ${fmtUsd(q.receiveUsd)}.`
+        : `${tax}, and liquidity did not shrink in the last 24 hours, so there is no drain to repeat: ${fmtUsd(q.receiveUsd)}.`;
+    },
   },
   {
     id: "queue",
     label: "The queue",
     preset: (n) => ({ ahead: n, applyTax: true, applyDrain: true }),
-    line: (q) =>
-      `Now let the ${q.walletsAhead} largest wallets sell before you do, one after another into the same pools, and your exit is worth ${fmtUsd(q.receiveUsd)}.`,
+    line: (q, t) =>
+      q.walletsAhead > 0
+        ? `Now let the ${q.walletsAhead === 1 ? "largest wallet" : `${q.walletsAhead} largest wallets`} sell before you do, one after another into the same pools, and your exit is worth ${fmtUsd(q.receiveUsd)}.`
+        : t.holders.length === 0
+          ? `CoinMarketCap sent no holder list for ${t.symbol} on this load, so no whale is queued ahead of you here and ${fmtUsd(q.receiveUsd)} stands.`
+          : `None of ${t.symbol}'s largest holders is a wallet that market-sells (they are pools, burns, exchanges, bridges or lockers), so ${fmtUsd(q.receiveUsd)} stands.`,
   },
   {
     id: "yours",
@@ -159,7 +168,8 @@ function StoryChapters({ token, intro }: { token: TokenSnapshot; intro: ReactNod
               </nav>
               {/* The source note with its fetch time sits under the hero (app/page.tsx), in the first viewport. */}
               <p className="mb-3 hidden text-xs text-muted-foreground sm:block">
-                {token.symbol}, {token.pools.length} pools, {token.holders.length} holders.
+                {token.symbol}, {token.pools.length} pools,{" "}
+                {token.holders.length > 0 ? `${token.holders.length} holders` : "no holder list in this load"}.
               </p>
               <ExitStage compact token={token} holdingUsd={DEFAULT_HOLDING_USD} {...controls} onChange={update} />
             </div>
