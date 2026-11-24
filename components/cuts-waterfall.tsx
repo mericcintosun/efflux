@@ -62,7 +62,7 @@ export function CutsWaterfall({ q, token, applyTax, applyDrain, onEmptyAction, o
   const lp = token.lpChange24hPct;
   const label: Record<CutKey, string> = {
     impact: "Price impact",
-    tax: token.sellTaxPct > 0 ? (applyTax ? `Sell tax ${fmtPctValue(token.sellTaxPct)}` : "Sell tax (switched off)") : "Sell tax (none on this token)",
+    tax: token.sellTaxPct > 0 ? (applyTax ? `Sell tax ${fmtPctValue(token.sellTaxPct)}` : "Sell tax (switched off)") : "Sell tax (none on record)",
     drain:
       lp < 0
         ? applyDrain

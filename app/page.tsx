@@ -118,6 +118,9 @@ export default async function Home() {
             {CMC_ENDPOINTS.filter((e) => e.live).map((e) => (
               <li key={e.path} className="break-all sm:break-normal">
                 <span className="text-muted-foreground">{e.method}</span> {e.path}
+                {e.note ? (
+                  <span className="ml-3 font-sans text-sm text-muted-foreground md:text-base">(not accepted yet, skipped)</span>
+                ) : null}
               </li>
             ))}
           </ul>
