@@ -7,7 +7,7 @@ Live demo: https://efflux-eight.vercel.app (start on `/` and drag "Wallets selli
 Real call, written by `npm run proof` (`scripts/proof.mjs`), never by hand:
 
 <!-- PROOF:BEGIN holders-sample -->
-Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+Not run in this build: CoinMarketCap returned 429 (POST /v1/dex/holders/list).
 <!-- PROOF:END holders-sample -->
 
 Which data the deployed page runs on is stated by the page itself: the note under the hero reads "Live from CoinMarketCap, BRETT on Base, fetched HH:MM UTC" in live mode, and names the seed or bundled snapshot otherwise.
@@ -28,7 +28,7 @@ People holding small tokens on Base, BNB Chain and Solana see a "value" in their
 Here is a real token instead of a made-up pool. The figures below are computed by `exitQuote()` over live CoinMarketCap data each time `npm run proof` runs:
 
 <!-- PROOF:BEGIN brett-exit -->
-Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token).
 <!-- PROOF:END brett-exit -->
 
 Read 0 as today and 10 as the worst case; the queue slider is a stress test, not a forecast.
@@ -138,21 +138,13 @@ Every request is recorded with method, URL, body, status, latency and the first 
 `scripts/proof.mjs` makes real keyless calls for the demo tokens and rewrites the two blocks below, plus the timing table under "Measured latency". When CoinMarketCap cannot be reached, it says so in one line instead of showing a response.
 
 <!-- PROOF:BEGIN cmc-call -->
-Captured by `npm run proof` at 2026-11-23T21:11:36.770Z, keyless host, no key header sent. First 600 characters of each response.
+Captured by `npm run proof` at 2026-11-24T10:15:52.573Z, keyless host, no key header sent. First 600 characters of each response.
 
-**GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`)**: status 200, 593 ms
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
 
-```json
-{"data":[{"addr":"0xba3f945812a83471d709bce9c3ca699a19fb46f7","v24":"5175.725544113682515167","pubAt":"1709041137000","t0":{"addr":"0x4200000000000000000000000000000000000006","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png","n":"Wrapped Ether","sym":"WETH","liq":"300.610501125676480566","liqUsd":"518351.121750777108294494"},"t1":{"addr":"0x532f27101965dd16442e59d40670faf5ebb142e4","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/29743.png","n":"Brett","sym":"BRETT","liq":"87633821.046975984489091858","liqUsd":"272836.234742882295918435"},"bidx":1,"exid":7791,"exn":
-```
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
 
-**GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`)**: status 200, 423 ms
-
-```json
-{"data":[{"addr":"5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9","v24":"197206.163799122805776835","pubAt":"1726946017000","t0":{"addr":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263","lg":"https://s2.coinmarketcap.com/static/img/coins/64x64/23095.png","n":"Bonk","sym":"Bonk","liq":"71456712540.03284","liqUsd":"155443.93052526365737485"},"t1":{"addr":"So11111111111111111111111111111111111111112","lg":"https://dex-static.sintral.io/token-logo/16/So11111111111111111111111111111111111111112/1766048405124.jpeg","n":"Wrapped SOL","sym":"wSOL","liq":"827.705139551","liqUsd":"60254.835854773086849312"}
-```
-
-- Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+- Not run in this build: CoinMarketCap returned 429 (POST /v1/dex/holders/list).
 <!-- PROOF:END cmc-call -->
 
 Field names seen in those responses, checked against the parser candidates:
@@ -160,21 +152,9 @@ Field names seen in those responses, checked against the parser candidates:
 <!-- PROOF:BEGIN cmc-fields -->
 Keys seen in the real responses, checked against the candidate keys in `lib/cmc-parse.ts`.
 
-- GET /public-api/v1/dex/token/pools (base, `0x532f27101965dd16442E59d40670FaF5eBB142E4`): top-level keys `data, status`; first item keys `addr, v24, pubAt, t0, t1, bidx, exid, exn, liqUsd, fa, top, mi`
-  - liquidity: found `liqUsd`
-  - address: found `addr`
-  - dex: found `exn`
-  - version: none of `v, version, poolType, type`
-  - fee: none of `feeRate, fee`
-  - sides: found `t0, t1`
-- GET /public-api/v1/dex/token/pools (solana, `DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263`): top-level keys `data, status`; first item keys `addr, v24, pubAt, t0, t1, bidx, exid, exn, liqUsd, fa, top, mi`
-  - liquidity: found `liqUsd`
-  - address: found `addr`
-  - dex: found `exn`
-  - version: none of `v, version, poolType, type`
-  - fee: none of `feeRate, fee`
-  - sides: found `t0, t1`
-- Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
+- Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token/pools).
+- Not run in this build: CoinMarketCap returned 429 (POST /v1/dex/holders/list).
 <!-- PROOF:END cmc-fields -->
 
 ### Measured latency
@@ -182,12 +162,12 @@ Keys seen in the real responses, checked against the candidate keys in `lib/cmc-
 The demo has a 5 second rule per step. `npm run proof` times the five calls the app makes for each demo token and rewrites the table below. In the app itself, the sample list gives each demo token 4 seconds (`LIST_BUDGET_MS` in `lib/config.ts`); a token that misses it is served from its seed snapshot and named in the source note.
 
 <!-- PROOF:BEGIN demo-timing -->
-Measured by `npm run proof` at 2026-11-23T21:11:36.770Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
+Measured by `npm run proof` at 2026-11-24T10:15:52.573Z, keyless host. Each row runs the five calls the app makes for one token, in parallel, timed with `performance.now()`.
 
 | Token | Chain | Total ms | Status codes (token, pools, holders, security, liquidity) | Within 5 s |
 | --- | --- | --- | --- | --- |
-| BRETT | base | 983 | 200, 200, 400, 400, 200 | yes |
-| Bonk | solana | 710 | 200, 200, 400, 400, 200 | yes |
+| 0x532f...42E4 | base | 465 | 429, 429, 429, 429, 429 | yes |
+| DezXAZ...B263 | solana | 398 | 429, 429, 429, 429, 429 | yes |
 <!-- PROOF:END demo-timing -->
 
 ### What the API made possible and where it pushed back

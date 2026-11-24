@@ -8,7 +8,6 @@ out/
 next-env.d.ts
 .farm-scaffold.json
 .farm-delta.md
-public/__farm.txt
 .farm-*
 
 # farm: sır dosyaları (otomatik eklendi)

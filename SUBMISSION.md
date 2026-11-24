@@ -15,7 +15,7 @@ What selling a small DEX token pays today, and what is left after the biggest wa
 Your wallet shows price times balance, not what a sale would pay. On a real token, computed by `exitQuote()` over live CoinMarketCap data when `npm run proof` runs:
 
 <!-- PROOF:BEGIN brett-exit -->
-Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+Not run in this build: CoinMarketCap returned 429 (GET /v1/dex/token).
 <!-- PROOF:END brett-exit -->
 
 Read 0 as today and 10 as the worst case; the queue slider is a stress test, not a forecast.
@@ -60,7 +60,7 @@ const res = await fetch("https://pro-api.coinmarketcap.com/public-api/v1/dex/hol
 ```
 
 <!-- PROOF:BEGIN holders-sample -->
-Not run in this build: CoinMarketCap returned 400 (POST /v1/dex/holders/list).
+Not run in this build: CoinMarketCap returned 429 (POST /v1/dex/holders/list).
 <!-- PROOF:END holders-sample -->
 
 Same request, live: https://efflux-eight.vercel.app/play?platform=base&address=0x532f27101965dd16442E59d40670FaF5eBB142E4 then Show the CoinMarketCap calls
